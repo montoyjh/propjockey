@@ -11,7 +11,10 @@ def config_to_uri(cfg):
         cfg['host'] = 'localhost'
     if not 'port' in cfg:
         cfg['port'] = 27017
-    format_str= "mongodb://{username}:{password}@{host}:{port}/{database}"
+    if not 'username' in cfg:
+        format_str= "mongodb://{host}:{port}/{database}"
+    else:
+        format_str= "mongodb://{username}:{password}@{host}:{port}/{database}"
     return format_str.format(**cfg)
 
 def mongoconnect(cfg, connect=False):
