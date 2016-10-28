@@ -53,7 +53,8 @@ def get_collections():
     return g.bunch
 
 def tablerow_data((votedoc, entry, w_id), prop_missing=True):
-    entry['description'] = econf['describe_entry'](entry)
+    entry['description'] = econf['describe_entry'](
+        entry, econf.get('description_fields', []))
     entry['id'] = entry[econf['e_id']]
     entry['e_link'] = econf['url_for_entry'].format(e_id=entry['id'])
     entry['extrasort'] = entry[econf['extrasort']['field']]
@@ -250,7 +251,7 @@ def entry_projection():
     econf = app.config['ENTRIES']
     projlist = [econf['e_id']]
     projlist.append(econf['extrasort']['field'])
-    projlist.extend(econf.get('projection_extras', []))
+    projlist.extend(econf.get('description_fields', []))
     projdict = {'_id': 0}
     for elt in projlist:
         projdict[elt] = 1
