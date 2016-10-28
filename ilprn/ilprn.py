@@ -35,7 +35,7 @@ def index():
 
 def connect_collections():
     """Connects to and provides handles to the MongoDB collections."""
-    set_test_config()
+    if app.config.get('USE_TEST_CLIENTS'): set_test_config()
     clients_config = app.config['CLIENTS']
     b = Bunch()
     b.clients = {name: mongoconnect(clients_config[name])
