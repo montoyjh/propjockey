@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="row">
+    <div class="col-md-4">
+      <p class="bg-danger">You are not logged in</p>
+      <form action="" method="post">
+        <div class="form-group">
+          <label for="user">Email address</label>
+          <input type="email" class="form-control" required
+                 name="user" placeholder="user@example.gov">
+        </div>
+        <div class="form-group">
+          <label for="user">API Key</label>
+          <input type="password" class="form-control"
+                 name="apikey" placeholder="API KEY">
+        </div>
+        <button type="submit" class="btn btn-primary">Login</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

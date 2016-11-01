@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+{% block title %}Index{% endblock %}
+{% block head %}
+{{ super() }}
+<style>
+ h1, h2, h3 {
+     margin-bottom: 1em;
+ }
+ table td.scoring-col {
+     text-align: left;
+ }
+ table th {
+     width: 20%;
+ }
+ form {
+     //margin-bottom: 0.5em;
+ }
+ form button {
+     margin-left: 0.5em;
+     width: 8em;
+ }
+ .important { color: #336699; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="pull-right">
+        <p class="important"> Logged in as {{ session.user }} </p>
+        <p class="pull-right"> <a href="logout">Log out</a> </p>
+      </div>
+      <h3>Interactive Leaderboard for Property Requests and Notification</h3>
+      <form action="/rows">
+        <input type="hidden" name="format" value="html">
+        <label>filter:</label>
+        <input class="form-control" type="text"
+               style="width: 8em; display: inline-block"
+               placeholder="Fe-O"
+               name="filter"
+               {% if params.filter %}
+               value="{{ params.filter }}"
+               {% endif %}>,
+        <label>sort:</label>
+        <div style="display: inline-block; vertical-align: middle; margin: 0 0.5em;">
+          <input type="radio" name="psort" value="incr"
+                 {%if params.primary_sort_dir == 1 %}checked{% endif %}>
+          incr <br>
+          <input type="radio" name="psort" value="decr"
+                 {%if params.primary_sort_dir == -1 %}checked{% endif %}>
+          decr
+        </div>
+        <strong>votes</strong>,
+        <div style="display: inline-block; vertical-align: middle; margin: 0 0.5em;">
+          <input type="radio" name="ssort" value="incr"
+                 {%if params.secondary_sort_dir == 1 %}checked{% endif %}>
+          incr <br>
+          <input type="radio" name="ssort" value="decr"
+                 {%if params.secondary_sort_dir == -1 %}checked{% endif %}>
+          decr
+        </div>
+        <strong>{{extrasort_label}}</strong>
+        <div style="margin: 0.5em 0"></div>
+        <input type="checkbox" name="useronly" value="true"
+               {%if params.user_only %}checked{% endif %}>
+        Show only what I have upvoted
+        <button class="btn btn-default">Go</button>
+        <a href="rows?format=html">reset all</a>
+      </form>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>description</th>
+            <th>votes</th>
+            <th>{{extrasort_label}}</th>
+            <th>detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr class="{%if row.p_link %}success{% elif row.votedfor %}info{% elif not row.w_link %}active{% endif %}">
+            <td><a href="{{row.e_link}}">{{row.id}}</a></td>
+            <td>{{row.description|safe}}</td>
+            <td>
+              {% if row.p_link %}
+              N/A
+              {% elif not row.nvotes %}
+              0
+              <button class="btn btn-success btn-xs">⬆</button>
+              {% elif row.votedfor %}
+              {{row.nvotes}}
+              <a href="#" style="text-decoration: none">&#x274c;</a>
+              {% else %}
+              {{row.nvotes}}
+              <button class="btn btn-success btn-xs">⬆</button>
+              {% endif %}
+            </td>
+            <td class="scoring-col">{{row.extrasort}}</td>
+            <td>
+              {% if row.w_link %}
+              <a href="{{row.w_link}}">workflow</a>
+              {% elif row.p_link %}
+              <a href="{{row.p_link}}">tensor</a>
+              {% else %}
+              N/A
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% set psize = params.pagesize %}
+      {% set pnum = params.pagenum %}
+      {% if params.pagenum > 0 %}
+      <a class="pull-left"
+         href="javascript:window.location=getPage({{psize}},{{pnum-1}});">
+        ← Previous
+      </a>
+      {% endif %}
+      {% if not no_more_rows %}
+      <a class="pull-right"
+         href="javascript:window.location=getPage({{psize}},{{pnum+1}});">
+        Next →
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block pagescript %}
+{{ super() }}
+<script>
+ function getPage(psize, pnum) {
+     var uri = updateQueryStringParameter('psize', psize)
+     return updateQueryStringParameter('pnum', pnum, uri)
+ }
+ function updateQueryStringParameter(key, value, uri) {
+     if (!uri) uri = window.location.href;
+     var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
+     var separator = uri.indexOf('?') !== -1 ? "&" : "?";
+     if (uri.match(re)) {
+         return uri.replace(re, '$1' + key + "=" + value + '$2');
+     }
+     else {
+         return uri + separator + key + "=" + value;
+     }
+ }
+</script>
+{% endblock %}

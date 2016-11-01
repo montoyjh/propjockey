@@ -1,7 +1,7 @@
 from operator import itemgetter
 
 from flask import Flask, session, redirect, url_for, escape, request
-from flask import g, jsonify
+from flask import g, jsonify, render_template
 from pymongo import ASCENDING, DESCENDING
 from toolz import join, memoize, dissoc, merge
 
@@ -30,8 +30,9 @@ def set_test_config():
 @app.route('/')
 def index():
     if 'user' in session:
-        return 'Logged in as %s' % escape(session['user'])
-    return 'You are not logged in'
+        return redirect(url_for('rows', format='html'))
+    else:
+        return redirect(url_for('login'))
 
 def connect_collections():
     """Connects to and provides handles to the MongoDB collections."""
@@ -96,12 +97,13 @@ def get_workflow_ids(entry_ids):
     return wconf['get_workflow_ids'](entry_ids, db.workflows)
 
 
-def entries_by_filter(entry_filter, sort=None, limit=0):
+def entries_by_filter(entry_filter, sort=None, skip=0, limit=0):
     db = get_collections()
     return db.entries.find(
         entry_filter,
         entry_projection(),
         sort=sort,
+        skip=skip,
         limit=limit)
 
 def order_by_idlist(entries, entry_ids):
@@ -117,8 +119,29 @@ def order_by_idlist(entries, entry_ids):
     entry_ids_present = [e_id for e_id in entry_ids if e_id in e_id_set]
     return [emap[e_id] for e_id in entry_ids_present]
 
-@app.route('/rows')
-def get_rows():
+def format_rows(data):
+    fmt = request.args.get('format', 'json')
+    if fmt == 'json':
+        return jsonify(data)
+    if fmt != 'html':
+        return ("error: Unknown response format: {}."
+                " Please choose 'json' or 'html'.".format(fmt))
+
+    params = _rows_params()
+    params.update({'filter': request.args.get('filter')})
+    print(params)
+    extrasort_label = econf['extrasort']['label']
+    rows = data['rows']
+    for r in rows:
+        r['description'] = econf['describe_entry_html'](r['description'])
+    return render_template(
+        'index.html',
+        rows=rows,
+        params=params,
+        extrasort_label=extrasort_label,
+        no_more_rows=data.get('nomore'))
+
+def _rows_params():
     user_only = request.args.get('useronly', 'false') == 'true'
     primary_sort_dir = (
         DESCENDING if request.args.get('psort', 'decr') == 'decr'
@@ -127,34 +150,53 @@ def get_rows():
         ASCENDING if request.args.get('ssort', 'incr') == 'incr'
         else DESCENDING)
     user_filter = None
+    # TODO want to wrap below in try/except for bad input
     if request.args.get('filter'):
-        # TODO want to wrap below in try/except for bad input
-        # XXX hack to get at all systems for debugging
-        if request.args.get('filter') == "{}":
-            user_filter = {}
-        else:
-            user_filter = econf['filter']['transform'](request.args.get('filter'))
+        user_filter = econf['filter']['transform'](request.args.get('filter'))
     which = set(request.args.getlist('which')
                 or ['active', 'inactive_missing', 'inactive_has'])
+    pagesize = request.args.get('psize', econf['rows_per_page'], type=int)
+    pagenum = request.args.get('pnum', 0, type=int)
+    skip = pagenum * pagesize
+    return dict(
+        user_only=user_only,
+        primary_sort_dir=primary_sort_dir,
+        secondary_sort_dir=secondary_sort_dir,
+        user_filter=user_filter,
+        which=which,
+        pagesize=pagesize,
+        pagenum=pagenum,
+        skip=skip)
 
-    #import ipdb; ipdb.set_trace()
+@app.route('/rows')
+def rows():
+    params = _rows_params()
+    user_only = params['user_only']
+    primary_sort_dir = params['primary_sort_dir']
+    secondary_sort_dir = params['secondary_sort_dir']
+    user_filter = params['user_filter']
+    which = params['which']
+    pagesize = params['pagesize']
+    skip = params['skip']
+
     active_votedocs, active_entry_ids = votedocs_and_eids(
         completed=False, user_only=user_only, sortdir=primary_sort_dir)
     result = []
     if 'active' in which:
-        result += rows_active(active_votedocs, active_entry_ids,
-                              primary_sort_dir, secondary_sort_dir,
-                              user_filter=user_filter, user_only=user_only)
-    from toolz import pluck
-    assert 'mp-81' not in pluck('id', result)
-    # Surplus. Cull and return.
-    if len(result) > econf['rows_per_page']:
-        result = result[:econf['rows_per_page']]
-        return jsonify({'rows': result})
-    # User supplied no filter or supplied an entry id as filter. Return.
+        rows = rows_active(active_votedocs, active_entry_ids,
+                           primary_sort_dir, secondary_sort_dir,
+                           user_filter=user_filter, user_only=user_only)
+        if skip < len(rows):
+            result += rows[skip:]
+            skip = 0
+        else:
+            skip -= len(rows)
+    if len(result) > pagesize:
+        result = result[:pagesize]
+        return format_rows({'rows': result})
     if ((user_filter is None and not user_only) or
-        (len(result) == 1 and econf['e_id'] in user_filter)):
-        return jsonify({'rows': result, 'nomore': True})
+        (len(result) == 1 and user_filter and econf['e_id'] in user_filter)):
+        return format_rows({'rows': result, 'nomore': True})
 
     # At this point, there may be few results, or a user simply wants
     # to fetch more. If `user_filter` is not None, we can return
@@ -165,7 +207,7 @@ def get_rows():
     #
     # respecting sorting parameter psort and ssort.
     sort=[(econf['extrasort']['field'], secondary_sort_dir)]
-    deficit = econf['rows_per_page'] - len(result)
+    deficit = pagesize - len(result)
     # Adding one to deficit for `limit` ensures that, in the case of
     # zero deficit, we can (a) check whether the user can request
     # another "page" of results, and (b) avoid setting limit=0 on a
@@ -175,32 +217,51 @@ def get_rows():
         _, completed_entry_ids = votedocs_and_eids(
             completed=True, user_only=user_only, sortdir=primary_sort_dir)
         e_id_constraint = {'$in': completed_entry_ids}
-        result += rows_inactive(e_id_constraint, user_filter,
-                                prop_missing=False, sort=sort, limit=limit)
-        if len(result) > econf['rows_per_page']:
-            result = result[:econf['rows_per_page']]
-            return jsonify({'rows': result})
+        prop_missing = False
+        cursor = entries_inactive(
+            e_id_constraint, user_filter, prop_missing=prop_missing,
+            sort=sort, skip=skip, limit=limit)
+        result += rows_inactive(list(cursor), prop_missing=prop_missing)
+        if len(result) > pagesize:
+            result = result[:pagesize]
+            return format_rows({'rows': result})
         else:
-            return jsonify({'rows': result, 'nomore': True})
+            return format_rows({'rows': result, 'nomore': True})
 
     e_id_constraint = {'$nin': active_entry_ids}
     if 'inactive_missing' in which:
-        result += rows_inactive(e_id_constraint, user_filter,
-                                prop_missing=True, sort=sort, limit=limit)
-    if len(result) > econf['rows_per_page']:
-        result = result[:econf['rows_per_page']]
-        return jsonify({'rows': result})
+        prop_missing = True
+        cursor = entries_inactive(
+            e_id_constraint, user_filter, prop_missing=prop_missing,
+            sort=sort, skip=0, limit=limit)
+        if skip < cursor.count():
+            cursor = cursor.skip(skip)
+            result += rows_inactive(list(cursor), prop_missing=prop_missing)
+            skip = 0
+        else:
+            skip -= cursor.count()
+    if len(result) > pagesize:
+        result = result[:pagesize]
+        return format_rows({'rows': result})
 
-    deficit = econf['rows_per_page'] - len(result)
+    deficit = pagesize - len(result)
     limit = deficit + 1
     if 'inactive_has' in which:
-        result += rows_inactive(e_id_constraint, user_filter,
-                                prop_missing=False, sort=sort, limit=limit)
-    if len(result) > econf['rows_per_page']:
-        result = result[:econf['rows_per_page']]
-        return jsonify({'rows': result})
+        prop_missing = False
+        cursor = entries_inactive(
+            e_id_constraint, user_filter, prop_missing=prop_missing,
+            sort=sort, skip=0, limit=limit)
+        if skip < cursor.count():
+            cursor = cursor.skip(skip)
+            result += rows_inactive(list(cursor), prop_missing=prop_missing)
+            skip = 0
+        else:
+            skip -= cursor.count()
+    if len(result) > pagesize:
+        result = result[:pagesize]
+        return format_rows({'rows': result})
     else:
-        return jsonify({'rows': result, 'nomore': True})
+        return format_rows({'rows': result, 'nomore': True})
 
 def votedocs_and_eids(completed=False, user_only=False, sortdir=DESCENDING):
     # TODO make user_only be falsy or a user string, to make this
@@ -236,15 +297,19 @@ def rows_active(active_votedocs, active_entry_ids,
                 reverse=primary_sort_dir is DESCENDING)
     return result
 
-def rows_inactive(e_id_constraint, user_filter,
-                  prop_missing=True, sort=None, limit=0):
-    filt = {econf['e_id']: e_id_constraint}
-    if user_filter is not None: filt.update(user_filter)
-    filt.update(econf['missing_property' if prop_missing else 'has_property'])
-    entries = list(entries_by_filter(filt, sort=sort, limit=limit))
+def rows_inactive(entries, prop_missing=True):
+    if not entries:
+        return []
     nones = len(entries) * [None]
     return [tablerow_data(z, prop_missing=prop_missing)
             for z in zip(nones, entries, nones)]
+
+def entries_inactive(e_id_constraint, user_filter, prop_missing=True,
+                     sort=None, skip=0, limit=0):
+    filt = {econf['e_id']: e_id_constraint}
+    if user_filter is not None: filt.update(user_filter)
+    filt.update(econf['missing_property' if prop_missing else 'has_property'])
+    return entries_by_filter(filt, sort=sort, skip=skip, limit=limit)
 
 @memoize
 def entry_projection():
@@ -273,18 +338,40 @@ def login():
     if request.method == 'POST':
         session['user'] = request.form['user']
         return redirect(url_for('index'))
-    return '''
-        <form action="" method="post">
-            <p><input type=text name=user>
-            <p><input type=submit value=Login>
-        </form>
-    '''
+    return render_template('login.html')
 
 @app.route('/logout')
 def logout():
     # remove the username from the session if it's there
     session.pop('user', None)
     return redirect(url_for('index'))
+
+@app.route('/vote', methods=['POST'])
+def vote():
+    if not 'user' in session:
+        return 'cannot vote anonymously'
+    user = session['user']
+    eid = request.form.get('eid')
+    how = request.form.get('how')
+    if (not eid) or (how not in ['up', 'down']):
+        return 'must specify entry id and how to vote ("up" or "down")'
+
+    db = get_collections()
+    filt = {vconf['entry_id']: eid}
+    filt.update(vconf['filter_active'])
+    active_doc = db.votes.find_one(filt)
+    if active_doc:
+        user_voted = vconf['user_voted'](
+            user, prefilter=False, votes_doc=active_doc)
+        if how == 'up' and user_voted:
+            return 'cannot upvote twice'
+        elif how == 'up':
+            return vconf['record_vote'](user, active_doc, db.votes, 'up')
+        elif how == 'down' and not user_voted:
+            return 'can only downvote after upvote'
+        elif how == 'down':
+            return vconf['record_vote'](user, active_doc, db.votes, 'down')
+    return 'ok'
 
 @app.cli.command('make_test_db')
 def make_test_db():
@@ -305,7 +392,7 @@ def make_test_db():
     print(tdb.workflows.count())
 
     tdb.entries.drop()
-    proj = {'elasticity.K_VRH': 1}
+    proj = {f: 1 for f in econf['filter_fields']}
     proj.update(entry_projection())
     tdb.entries.insert_many(list(db.entries.find({}, proj)))
     print(tdb.entries.count())
