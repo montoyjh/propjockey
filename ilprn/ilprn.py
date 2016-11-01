@@ -1,11 +1,12 @@
 from operator import itemgetter
 
 from flask import Flask, session, redirect, url_for, escape, request
-from flask import g, jsonify, render_template
+from flask import g, jsonify, render_template, flash, abort
 from pymongo import ASCENDING, DESCENDING
 from toolz import join, memoize, dissoc, merge
 
 from util import Bunch, get_collection, mongoconnect
+from passwordless import Passwordless
 
 
 app = Flask(__name__)
@@ -15,6 +16,9 @@ app.config.from_envvar('ILPRN_SETTINGS', silent=True)
 econf = app.config['ENTRIES']
 vconf = app.config['VOTES']
 wconf = app.config['WORKFLOWS']
+pconf = app.config['PASSWORDLESS']
+
+passwordless = Passwordless(app)
 
 def set_test_config():
     def get_workflow_ids(eids, coll):
@@ -129,7 +133,6 @@ def format_rows(data):
 
     params = _rows_params()
     params.update({'filter': request.args.get('filter')})
-    print(params)
     extrasort_label = econf['extrasort']['label']
     rows = data['rows']
     for r in rows:
@@ -336,9 +339,20 @@ def votedoc_projection():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        session['user'] = request.form['user']
+        user = request.form['user']
+        session['user'] = user
+        passwordless.request_token(user)
         return redirect(url_for('index'))
     return render_template('login.html')
+
+@app.route('/authenticate')
+def authenticate():
+    if passwordless.authenticate(request):
+        session['user'] = request.args.get('uid')
+        return redirect(url_for('index'))
+    else:
+        flash('bad user email or token', 'danger')
+        return redirect(url_for('login'))
 
 @app.route('/logout')
 def logout():
@@ -346,32 +360,89 @@ def logout():
     session.pop('user', None)
     return redirect(url_for('index'))
 
+@app.route('/authtoken', methods=['POST'])
+def authtoken():
+    """Endpoint for a companion web service to get a token for a user."""
+    app_id = request.form.get('app_id')
+    app_secret = request.form.get('app_secret')
+    if (app_id != pconf['remote_app_id'] or
+        app_secret != pconf['remote_app_secret']):
+        abort(401)
+    user = request.form.get('user')
+    if not user:
+        abort(400)
+    return jsonify({'uri': passwordless.request_token(user, deliver=False)})
+
 @app.route('/vote', methods=['POST'])
 def vote():
-    if not 'user' in session:
-        return 'cannot vote anonymously'
-    user = session['user']
+    user = session.get('user')
     eid = request.form.get('eid')
     how = request.form.get('how')
-    if (not eid) or (how not in ['up', 'down']):
-        return 'must specify entry id and how to vote ("up" or "down")'
+    redirect_path = request.form.get('redirect_path')
 
+    message, category= _vote(user, eid, how)
+    if not redirect_path:
+        return jsonify((message, category))
+    else:
+        # 'error' -> 'danger' for front-end styling
+        category = 'danger' if category == 'error' else category
+        flash(message, category)
+        return redirect(redirect_path)
+
+def _vote(user, eid, how):
+    ERROR, INFO, WARNING, SUCCESS = 'error', 'info', 'warning', 'success'
+    if not user:
+        return 'cannot vote anonymously', ERROR
+    if (not eid) or (how not in ['up', 'down']):
+        return 'must specify entry id and how to vote ("up" or "down")', ERROR
     db = get_collections()
+
+    if how == 'up':
+        filt_active_user_voted = vconf['filter_active'].copy()
+        filt_active_user_voted.update(vconf['user_voted'](user, prefilter=True))
+        num_active_user_voted = db.votes.find(filt_active_user_voted).count()
+        max_active = vconf['max_active_votes_per_user']
+        if num_active_user_voted >= max_active:
+            return ("There is a maximum of {} active votes per user "
+                    "from this interface. Consider revoking votes for your "
+                    "least favorite entries.".format(max_active)), ERROR
+
     filt = {vconf['entry_id']: eid}
     filt.update(vconf['filter_active'])
     active_doc = db.votes.find_one(filt)
+    filt_for_update = {vconf['entry_id']: eid,
+                       vconf['prop_field']: vconf['prop_value']}
     if active_doc:
         user_voted = vconf['user_voted'](
             user, prefilter=False, votes_doc=active_doc)
         if how == 'up' and user_voted:
-            return 'cannot upvote twice'
+            return 'cannot upvote twice', ERROR
         elif how == 'up':
-            return vconf['record_vote'](user, active_doc, db.votes, 'up')
+            return vconf['record_vote'](
+                user, active_doc, db.votes, 'up', filt_for_update), SUCCESS
         elif how == 'down' and not user_voted:
-            return 'can only downvote after upvote'
+            return 'can only downvote after upvote', ERROR
         elif how == 'down':
-            return vconf['record_vote'](user, active_doc, db.votes, 'down')
-    return 'ok'
+            return vconf['record_vote'](
+                user, active_doc, db.votes, 'down', filt_for_update), SUCCESS
+        else:
+            return "unknown voting operation on active entry", ERROR
+    else:
+        filt = {vconf['entry_id']: eid}
+        filt.update(vconf['filter_completed'])
+        completed_doc = db.votes.find_one(filt)
+        if completed_doc:
+            return "cannot vote on completed entry", ERROR
+        filt = {econf['e_id']: eid}
+        filt.update(econf['missing_property'])
+        entry_exists = db.entries.find(filt).count() == 1
+        if not entry_exists:
+            return "cannot vote on non-existent entry {}".format(eid), ERROR
+        if how == 'down':
+            return "cannot downvote entry with missing property", ERROR
+
+        return vconf['record_vote'](
+                user, {}, db.votes, 'up', filt_for_update), SUCCESS
 
 @app.cli.command('make_test_db')
 def make_test_db():

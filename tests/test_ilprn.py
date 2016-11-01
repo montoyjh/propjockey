@@ -1,9 +1,11 @@
 import json
 from itertools import tee, izip, groupby
 from operator import itemgetter
+import re
 
 import pytest
 from ilprn import ilprn
+from passwordless import Passwordless
 
 def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
@@ -21,13 +23,27 @@ def set_test_config():
         for k in ['votes', 'entries', 'workflows']
     }
     ilprn.app.config['WORKFLOWS']['get_workflow_ids'] = get_workflow_ids
+    ilprn.app.config['PASSWORDLESS'] = {
+        'TOKEN_STORE': 'mongo',
+        'DELIVERY_METHOD': 'null',
+        'LOGIN_URL': 'plain',
+        'dbname': 'ilprn_test',
+    }
 
 @pytest.fixture
 def client(request):
     ilprn.app.config['TESTING'] = True
     set_test_config()
+    ilprn.passwordless = Passwordless(ilprn.app)
     client = ilprn.app.test_client()
+    ctx = ilprn.app.test_request_context()
+    ctx.push()
     return client
+
+@pytest.fixture
+def db():
+    with ilprn.app.app_context():
+        return ilprn.get_collections()
 
 def login(client, user):
     return client.post('/login', data=dict(
@@ -74,17 +90,17 @@ def test_active_withfilter_incrvotes(client):
 
 def test_login_logout(client):
     """Make sure login and logout works"""
-    user = 'maartendft@gmail.com'
+    user = 'dwinston@lbl.gov'
     rv = login(client, user)
     assert 'Logged in as' in rv.data
     assert user in rv.data
     rv = logout(client)
-    assert 'You are not logged in' in rv.data
+    assert 'user@example.gov' in rv.data
 
 def test_nofilter_onlymyvotes(client):
     # Should return only entries for which user has upvoted,
     # including completed entries.
-    user = 'maartendft@gmail.com'
+    user = 'dwinston@lbl.gov'
     login(client, user)
     rv = client.get('/rows?useronly=true&psize=500')
     rows = get_rows(rv)
@@ -134,15 +150,15 @@ def test_paginaton(client):
     rows_oneshot = get_rows(client.get(base+'&psize=500'))
     assert [r['id'] for r in rows_accum] == [r['id'] for r in rows_oneshot]
 
-def test_voting(client):
+def test_voting(client, db):
     # upvoting and downvoting
-    eid = 'mp-1821'
-    user_already_requested = 'maartendft@gmail.com'
-    user_hasnt_requested = 'shyamd@lbl.gov'
-    def try_up():
-        return client.post('/vote', data=dict(how='up', eid='mp-1821'))
-    def try_down():
-        return client.post('/vote', data=dict(how='down', eid='mp-1821'))
+    eid = 'mp-995238'
+    user_already_requested = 'shyamd@lbl.gov'
+    user_hasnt_requested = 'dwinston@lbl.gov'
+    def try_up(eid=eid):
+        return client.post('/vote', data=dict(how='up', eid=eid))
+    def try_down(eid=eid):
+        return client.post('/vote', data=dict(how='down', eid=eid))
 
     rv = try_up()
     assert 'cannot vote anonymously' in rv.data
@@ -166,6 +182,16 @@ def test_voting(client):
     rv = try_down()
     assert 'downvoted' in rv.data and 'success' in rv.data
 
+    # upvote something without a votedoc
+    eid_inactive_missing = 'mp-21050'
+    vconf = ilprn.vconf
+    filt ={vconf['entry_id']: eid_inactive_missing,
+           vconf['prop_field']: vconf['prop_value']}
+    assert db.votes.find(filt).count() == 0
+    rv = try_up(eid_inactive_missing)
+    assert 'upvoted' in rv.data and 'success' in rv.data
+    db.votes.delete_one(filt)
+
 def test_form_ui_and_table_display(client):
     user = 'maartendft@gmail.com'
     login(client, user)
@@ -177,22 +203,69 @@ def test_form_ui_and_table_display(client):
     assert 'Previous' in rv.data
 
 def test_webui_voting(client):
-    # Maybe keep query params in `session` so don't need to POST it all
-    # when voting?
-    pass
+    # doesn't actually do 'click testing' of UI, but exercises endpoint.
+    user = 'shyamd@lbl.gov'
+    eid = 'mp-25015'
+    login(client, user)
+    assert eid in client.get('/rows?format=html').data
+    rv = client.post(
+        'vote',
+        data=dict(redirect_path='/rows?format=html',
+                  eid=eid,
+                  how='up'),
+        follow_redirects=True)
+    assert ('success: upvoted {}'.format(eid) in rv.data
+            and 'Log out' in rv.data)
+    rv = client.post(
+        'vote',
+        data=dict(redirect_path='/rows?format=html',
+                  eid=eid,
+                  how='down'),
+        follow_redirects=True)
+    assert ('success: downvoted {}'.format(eid) in rv.data
+            and 'Log out' in rv.data)
 
 def test_votelimit(client):
-    # Each user has vconf['user_limit'] votes.
-    pass
+    # Each user has vconf['max_active_votes_per_user'] votes.
+    user = 'dwinston@lbl.gov'
+    login(client, user)
+    n = ilprn.vconf['max_active_votes_per_user']
+    rv = client.get('/rows?psize={}&filter=*-O&format=json'.format(n))
+    eids = [r['id'] for r in json.loads(rv.data)['rows']]
+    data = []
+    for eid in eids:
+        data.append(client.post('/vote', data=dict(how='up', eid=eid)).data)
+    assert any('Consider revoking votes' in d for d in data)
+    for eid in eids:
+        client.post('/vote', data=dict(how='down', eid=eid))
 
 def test_authtoken_gen_and_fulfillment(client):
-    pass
+    token_uri = ilprn.passwordless.request_token(
+        user='dwinston@lbl.gov', deliver=False)
+    assert ('authenticate?token=' in token_uri and
+            '&uid=dwinston@lbl.gov' in token_uri)
+    m = re.match('.*?//.*?(/.*)', token_uri)
+    path = m.group(1)
+    rv = client.get(path, follow_redirects=True)
+    assert 'bad user email or token' not in rv.data
+    rv = client.get(path, follow_redirects=True)
+    assert 'bad user email or token' in rv.data
 
 def test_email_authtoken(client):
-    # Need to verify from external API that user is authorized.
+    # Need to verify from external API that user is authorized to use
+    # this instance of ILPRN. Once that is confirmed, send email.  If
+    # not confirmed, send email saying to go to MP and sign up.
+    #
+    # Note: this feature is not strictly necessary if users only
+    # arrive to the ILPRN web interface via tokenized links requested
+    # by the remote app.
     pass
 
 def test_email_notification(client):
+    # needs to be a module that one can run as a cron job.
+    #
+    # Note: there is already an up-and-running cron job for MP apart
+    # from ILPRN that can be adapted.
     pass
 
 def test_app_auth(client):
@@ -200,4 +273,28 @@ def test_app_auth(client):
     # In this way, one can build a service that consumes ilprn data.
     #
     # E.g. be able to vote using app id and token in request header.
+    #
+    # given MP app id and token, I want to get a token_uri for any user.
+    pconf = ilprn.pconf
+    app_id, app_secret = pconf['remote_app_id'], pconf['remote_app_secret']
+    rv = client.post('/authtoken', data=dict(user='dwinston@lbl.gov'))
+    assert rv.status_code == 401
+    rv = client.post('/authtoken', data=dict(
+        user='dwinston@lbl.gov',
+        app_id='letsget',
+        app_secret='dangerous'
+    ))
+    assert rv.status_code == 401
+    rv = client.post('/authtoken', data=dict(
+        user='dwinston@lbl.gov',
+        app_id=app_id,
+        app_secret=app_secret
+    ))
+    assert rv.status_code == 200 and '/authenticate?' in rv.data
+
+def test_auth_lockdown(client):
+    # Now that tokenized urls are available, ensure all scaffolding
+    # for easy user login for testing is stripped away. Can refactor
+    # the `login(client, user)` test method to generate token urls
+    # under the hood.
     pass

@@ -12,12 +12,19 @@
  table th {
      width: 20%;
  }
- form {
-     //margin-bottom: 0.5em;
- }
- form button {
+ form.main button {
      margin-left: 0.5em;
      width: 8em;
+ }
+ form[action=vote] {
+     display: inline;
+ }
+ button.downvote {
+     background:none!important;
+     border:none;
+     padding:0!important;
+     font: inherit;
+     cursor: pointer;
  }
  .important { color: #336699; }
 </style>
@@ -31,7 +38,7 @@
         <p class="pull-right"> <a href="logout">Log out</a> </p>
       </div>
       <h3>Interactive Leaderboard for Property Requests and Notification</h3>
-      <form action="/rows">
+      <form action="/rows" class="main">
         <input type="hidden" name="format" value="html">
         <label>filter:</label>
         <input class="form-control" type="text"
@@ -88,13 +95,31 @@
               N/A
               {% elif not row.nvotes %}
               0
-              <button class="btn btn-success btn-xs">⬆</button>
+              <form action="vote" method="post">
+                <input type="hidden" name="redirect_path"
+                       value="{{request.full_path}}">
+                <input type="hidden" name="eid" value="{{row.id}}">
+                <input type="hidden" name="how" value="up">
+                <button type="submit" class="btn btn-success btn-xs">⬆</button>
+              </form>
               {% elif row.votedfor %}
               {{row.nvotes}}
-              <a href="#" style="text-decoration: none">&#x274c;</a>
+              <form action="vote" method="post">
+                <input type="hidden" name="redirect_path"
+                       value="{{request.full_path}}">
+                <input type="hidden" name="eid" value="{{row.id}}">
+                <input type="hidden" name="how" value="down">
+                <button type="submit" class="downvote">&#x274c;</button>
+              </form>
               {% else %}
               {{row.nvotes}}
-              <button class="btn btn-success btn-xs">⬆</button>
+              <form action="vote" method="post">
+                <input type="hidden" name="redirect_path"
+                       value="{{request.full_path}}">
+                <input type="hidden" name="eid" value="{{row.id}}">
+                <input type="hidden" name="how" value="up">
+                <button type="submit" class="btn btn-success btn-xs">⬆</button>
+              </form>
               {% endif %}
             </td>
             <td class="scoring-col">{{row.extrasort}}</td>
