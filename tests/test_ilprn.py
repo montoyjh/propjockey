@@ -46,9 +46,16 @@ def db():
         return ilprn.get_collections()
 
 def login(client, user):
-    return client.post('/login', data=dict(
-        user=user
-    ), follow_redirects=True)
+    pconf = ilprn.pconf
+    app_id, app_secret = pconf['remote_app_id'], pconf['remote_app_secret']
+    rv = client.post('/authtoken', data=dict(
+        user=user,
+        app_id=app_id,
+        app_secret=app_secret
+    ))
+    uri = json.loads(rv.data)['uri']
+    path = re.match('.*?//.*?(/.*)', uri).group(1)
+    return client.get(path, follow_redirects=True)
 
 def logout(client):
     return client.get('/logout', follow_redirects=True)

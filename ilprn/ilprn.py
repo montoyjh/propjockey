@@ -340,10 +340,14 @@ def votedoc_projection():
 def login():
     if request.method == 'POST':
         user = request.form['user']
-        session['user'] = user
-        passwordless.request_token(user)
+        message, category = passwordless.request_token(user)
+        flash(message, category)
         return redirect(url_for('index'))
-    return render_template('login.html')
+    return render_template(
+        'login.html',
+        remote_app={'name': pconf['remote_app_name'],
+                    'uri': pconf['remote_app_uri']}
+    )
 
 @app.route('/authenticate')
 def authenticate():

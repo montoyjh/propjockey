@@ -2,6 +2,8 @@ import abc
 import logging
 import sys
 
+SUCCESS, INFO, WARNING, ERROR = 'success', 'info', 'danger', 'error'
+
 class DeliveryMethod(object):
     __metaclass__ = abc.ABCMeta
 
@@ -15,7 +17,7 @@ class DeliverByNull(DeliveryMethod):
         pass
 
     def __call__(self, token, email):
-        return "Deliver: {} to {}".format(token, email)
+        return "Deliver: {} to {}".format(token, email), SUCCESS
 
 class DeliverByLog(DeliveryMethod):
     def __init__(self, config):
