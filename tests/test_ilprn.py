@@ -7,11 +7,13 @@ import pytest
 from ilprn import ilprn
 from passwordless import Passwordless
 
+
 def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     a, b = tee(iterable)
     next(b, None)
     return izip(a, b)
+
 
 def set_test_config():
     def get_workflow_ids(eids, coll):
@@ -30,6 +32,7 @@ def set_test_config():
         'dbname': 'ilprn_test',
     }
 
+
 @pytest.fixture
 def client(request):
     ilprn.app.config['TESTING'] = True
@@ -40,10 +43,12 @@ def client(request):
     ctx.push()
     return client
 
+
 @pytest.fixture
 def db():
     with ilprn.app.app_context():
         return ilprn.get_collections()
+
 
 def login(client, user):
     pconf = ilprn.pconf
@@ -57,20 +62,25 @@ def login(client, user):
     path = re.match('.*?//.*?(/.*)', uri).group(1)
     return client.get(path, follow_redirects=True)
 
+
 def logout(client):
     return client.get('/logout', follow_redirects=True)
 
+
 def get_rows(rv):
     return json.loads(rv.data)['rows']
+
 
 def test_nofilter(client):
     rv = client.get('/rows')
     assert len(json.loads(rv.data)) > 0
 
+
 def test_nofilter_incrvotes(client):
     rv = client.get('/rows?psort=incr')
     rows = get_rows(rv)
     assert all(ri['nvotes'] <= rj['nvotes'] for ri, rj in pairwise(rows))
+
 
 def test_nofilter_decrextrasort(client):
     rv = client.get('/rows?ssort=decr')
@@ -79,12 +89,14 @@ def test_nofilter_decrextrasort(client):
         assert all(ri['extrasort'] >= rj['extrasort']
                    for ri, rj in pairwise(list(g)))
 
+
 def test_withfilter(client):
     elsym = 'O'
     rv = client.get('/rows?filter=*-{}'.format(elsym))
     rows = get_rows(rv)
     formulae = [r['description'].split()[0] for r in rows]
     assert all(elsym in f and len(f) >= 2 for f in formulae)
+
 
 def test_active_withfilter_incrvotes(client):
     elsym = 'O'
@@ -95,6 +107,7 @@ def test_active_withfilter_incrvotes(client):
     assert all(elsym in f and len(f) >= 2 for f in formulae)
     assert all(ri['nvotes'] <= rj['nvotes'] for ri, rj in pairwise(rows))
 
+
 def test_login_logout(client):
     """Make sure login and logout works"""
     user = 'dwinston@lbl.gov'
@@ -103,6 +116,7 @@ def test_login_logout(client):
     assert user in rv.data
     rv = logout(client)
     assert 'user@example.gov' in rv.data
+
 
 def test_nofilter_onlymyvotes(client):
     # Should return only entries for which user has upvoted,
@@ -115,6 +129,7 @@ def test_nofilter_onlymyvotes(client):
     # Ensure the user for this test case has at least one completed entry.
     assert any(r.get('p_link') for r in rows)
 
+
 def test_toggle_onlymyvotes(client):
     # Regression test to guard against overwriting
     # app.config['VOTES']['filter_active'].
@@ -126,6 +141,7 @@ def test_toggle_onlymyvotes(client):
     rv = client.get('/rows?useronly=whatever')
     rows = get_rows(rv)
     assert not all(r.get('p_link') or r.get('votedfor') for r in rows)
+
 
 def test_row_fetch_order(client):
     # With filter, order should be
@@ -147,6 +163,7 @@ def test_row_fetch_order(client):
     assert all(i < j < k for (i,j,k) in
                zip(active_missing, inactive_missing, inactive_has))
 
+
 def test_paginaton(client):
     # Need to pass `skip` to mongo cursors appropriately.
     rows_accum = []
@@ -156,6 +173,7 @@ def test_paginaton(client):
             get_rows(client.get(base+'&psize=100&pnum={}'.format(pnum))))
     rows_oneshot = get_rows(client.get(base+'&psize=500'))
     assert [r['id'] for r in rows_accum] == [r['id'] for r in rows_oneshot]
+
 
 def test_voting(client, db):
     # upvoting and downvoting
@@ -192,12 +210,13 @@ def test_voting(client, db):
     # upvote something without a votedoc
     eid_inactive_missing = 'mp-21050'
     vconf = ilprn.vconf
-    filt ={vconf['entry_id']: eid_inactive_missing,
-           vconf['prop_field']: vconf['prop_value']}
+    filt = {vconf['entry_id']: eid_inactive_missing,
+            vconf['prop_field']: vconf['prop_value']}
     assert db.votes.find(filt).count() == 0
     rv = try_up(eid_inactive_missing)
     assert 'upvoted' in rv.data and 'success' in rv.data
     db.votes.delete_one(filt)
+
 
 def test_form_ui_and_table_display(client):
     user = 'maartendft@gmail.com'
@@ -208,6 +227,7 @@ def test_form_ui_and_table_display(client):
     assert 'Next' in rv.data
     rv = client.get('/rows?format=html&pnum=1')
     assert 'Previous' in rv.data
+
 
 def test_webui_voting(client):
     # doesn't actually do 'click testing' of UI, but exercises endpoint.
@@ -232,6 +252,7 @@ def test_webui_voting(client):
     assert ('success: downvoted {}'.format(eid) in rv.data
             and 'Log out' in rv.data)
 
+
 def test_votelimit(client):
     # Each user has vconf['max_active_votes_per_user'] votes.
     user = 'dwinston@lbl.gov'
@@ -246,6 +267,7 @@ def test_votelimit(client):
     for eid in eids:
         client.post('/vote', data=dict(how='down', eid=eid))
 
+
 def test_authtoken_gen_and_fulfillment(client):
     token_uri = ilprn.passwordless.request_token(
         user='dwinston@lbl.gov', deliver=False)
@@ -258,6 +280,7 @@ def test_authtoken_gen_and_fulfillment(client):
     rv = client.get(path, follow_redirects=True)
     assert 'bad user email or token' in rv.data
 
+
 def test_email_authtoken(client):
     # Need to verify from external API that user is authorized to use
     # this instance of ILPRN. Once that is confirmed, send email.  If
@@ -268,12 +291,14 @@ def test_email_authtoken(client):
     # by the remote app.
     pass
 
+
 def test_email_notification(client):
     # needs to be a module that one can run as a cron job.
     #
     # Note: there is already an up-and-running cron job for MP apart
     # from ILPRN that can be adapted.
     pass
+
 
 def test_app_auth(client):
     # Be able to get data on behalf of user given app id and token.
@@ -298,6 +323,7 @@ def test_app_auth(client):
         app_secret=app_secret
     ))
     assert rv.status_code == 200 and '/authenticate?' in rv.data
+
 
 def test_auth_lockdown(client):
     # Now that tokenized urls are available, ensure all scaffolding
