@@ -1,9 +1,9 @@
 from operator import itemgetter
 
-from flask import Flask, session, redirect, url_for, escape, request
+from flask import Flask, session, redirect, url_for, request
 from flask import g, jsonify, render_template, flash, abort
 from pymongo import ASCENDING, DESCENDING
-from toolz import join, memoize, dissoc, merge
+from toolz import memoize, merge
 
 from util import Bunch, get_collection, mongoconnect
 from passwordless import Passwordless
