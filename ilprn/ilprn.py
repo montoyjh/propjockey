@@ -20,6 +20,7 @@ pconf = app.config['PASSWORDLESS']
 
 passwordless = Passwordless(app)
 
+
 def set_test_config():
     def get_workflow_ids(eids, coll):
         rv = sorted(coll.find({'eid': {'$in': eids}}), key=itemgetter('eid'))
@@ -31,6 +32,7 @@ def set_test_config():
     }
     app.config['WORKFLOWS']['get_workflow_ids'] = get_workflow_ids
 
+
 @app.route('/')
 def index():
     if 'user' in session:
@@ -38,9 +40,11 @@ def index():
     else:
         return redirect(url_for('login'))
 
+
 def connect_collections():
     """Connects to and provides handles to the MongoDB collections."""
-    if app.config.get('USE_TEST_CLIENTS'): set_test_config()
+    if app.config.get('USE_TEST_CLIENTS'):
+        set_test_config()
     clients_config = app.config['CLIENTS']
     b = Bunch()
     b.clients = {name: mongoconnect(clients_config[name])
@@ -49,6 +53,7 @@ def connect_collections():
         setattr(b, name, get_collection(b.clients, clients_config, name))
     return b
 
+
 def get_collections():
     """Opens new client connections if there are none yet for the
     current application context.
@@ -56,6 +61,7 @@ def get_collections():
     if not hasattr(g, 'bunch'):
         g.bunch = connect_collections()
     return g.bunch
+
 
 def tablerow_data((votedoc, entry, w_id), prop_missing=True):
     entry['description'] = econf['describe_entry'](
@@ -82,6 +88,7 @@ def tablerow_data((votedoc, entry, w_id), prop_missing=True):
 
     return merge(entry, votedoc or {})
 
+
 def find_votes(completed=False, user_only=False, sortdir=DESCENDING):
     db = get_collections()
     filt = vconf['filter_completed' if completed else 'filter_active'].copy()
@@ -91,6 +98,7 @@ def find_votes(completed=False, user_only=False, sortdir=DESCENDING):
         filt,
         votedoc_projection(),
         sort=[(vconf['nvotes'], sortdir)])
+
 
 def get_workflow_ids(entry_ids):
     """Return list of workflows ids corresponding to given ids in order.
@@ -110,6 +118,7 @@ def entries_by_filter(entry_filter, sort=None, skip=0, limit=0):
         skip=skip,
         limit=limit)
 
+
 def order_by_idlist(entries, entry_ids):
     """Return `entries` sorted by the order in `entry_ids`.
 
@@ -122,6 +131,7 @@ def order_by_idlist(entries, entry_ids):
     e_id_set = {e_id for e_id in emap}
     entry_ids_present = [e_id for e_id in entry_ids if e_id in e_id_set]
     return [emap[e_id] for e_id in entry_ids_present]
+
 
 def format_rows(data):
     fmt = request.args.get('format', 'json')
@@ -143,6 +153,7 @@ def format_rows(data):
         params=params,
         extrasort_label=extrasort_label,
         no_more_rows=data.get('nomore'))
+
 
 def _rows_params():
     user_only = request.args.get('useronly', 'false') == 'true'
@@ -171,6 +182,7 @@ def _rows_params():
         pagenum=pagenum,
         skip=skip)
 
+
 @app.route('/rows')
 def rows():
     params = _rows_params()
@@ -198,7 +210,8 @@ def rows():
         result = result[:pagesize]
         return format_rows({'rows': result})
     if ((user_filter is None and not user_only) or
-        (len(result) == 1 and user_filter and econf['e_id'] in user_filter)):
+            (len(result) == 1 and user_filter and
+             econf['e_id'] in user_filter)):
         return format_rows({'rows': result, 'nomore': True})
 
     # At this point, there may be few results, or a user simply wants
@@ -209,7 +222,7 @@ def rows():
     # {active votes} -> {missing property} -> {has property},
     #
     # respecting sorting parameter psort and ssort.
-    sort=[(econf['extrasort']['field'], secondary_sort_dir)]
+    sort = [(econf['extrasort']['field'], secondary_sort_dir)]
     deficit = pagesize - len(result)
     # Adding one to deficit for `limit` ensures that, in the case of
     # zero deficit, we can (a) check whether the user can request
@@ -266,6 +279,7 @@ def rows():
     else:
         return format_rows({'rows': result, 'nomore': True})
 
+
 def votedocs_and_eids(completed=False, user_only=False, sortdir=DESCENDING):
     # TODO make user_only be falsy or a user string, to make this
     # function cacheable. Can rename user_only for clarity.
@@ -273,6 +287,7 @@ def votedocs_and_eids(completed=False, user_only=False, sortdir=DESCENDING):
                                sortdir=sortdir))
     entry_ids = [d[vconf['entry_id']] for d in votedocs]
     return votedocs, entry_ids
+
 
 def rows_active(active_votedocs, active_entry_ids,
                 primary_sort_dir, secondary_sort_dir,
@@ -284,7 +299,8 @@ def rows_active(active_votedocs, active_entry_ids,
     # collection.
     filt = {econf['e_id']: {'$in': active_entry_ids}}
     # override econf['e_id'] filter spec with `user_filter`'s.
-    if user_filter: filt.update(user_filter)
+    if user_filter:
+        filt.update(user_filter)
     # Fetch/construct equal-length lists of entries, workflow_ids, and
     # votedocs, keeping nvotes-sorted order.
     entries = order_by_idlist(entries_by_filter(filt), active_entry_ids)
@@ -300,6 +316,7 @@ def rows_active(active_votedocs, active_entry_ids,
                 reverse=primary_sort_dir is DESCENDING)
     return result
 
+
 def rows_inactive(entries, prop_missing=True):
     if not entries:
         return []
@@ -307,12 +324,15 @@ def rows_inactive(entries, prop_missing=True):
     return [tablerow_data(z, prop_missing=prop_missing)
             for z in zip(nones, entries, nones)]
 
+
 def entries_inactive(e_id_constraint, user_filter, prop_missing=True,
                      sort=None, skip=0, limit=0):
     filt = {econf['e_id']: e_id_constraint}
-    if user_filter is not None: filt.update(user_filter)
+    if user_filter is not None:
+        filt.update(user_filter)
     filt.update(econf['missing_property' if prop_missing else 'has_property'])
     return entries_by_filter(filt, sort=sort, skip=skip, limit=limit)
+
 
 @memoize
 def entry_projection():
@@ -324,6 +344,7 @@ def entry_projection():
     for elt in projlist:
         projdict[elt] = 1
     return projdict
+
 
 @memoize
 def votedoc_projection():
@@ -349,6 +370,7 @@ def login():
                     'uri': pconf['remote_app_uri']}
     )
 
+
 @app.route('/authenticate')
 def authenticate():
     if passwordless.authenticate(request):
@@ -358,11 +380,13 @@ def authenticate():
         flash('bad user email or token', 'danger')
         return redirect(url_for('login'))
 
+
 @app.route('/logout')
 def logout():
     # remove the username from the session if it's there
     session.pop('user', None)
     return redirect(url_for('index'))
+
 
 @app.route('/authtoken', methods=['POST'])
 def authtoken():
@@ -370,12 +394,13 @@ def authtoken():
     app_id = request.form.get('app_id')
     app_secret = request.form.get('app_secret')
     if (app_id != pconf['remote_app_id'] or
-        app_secret != pconf['remote_app_secret']):
+            app_secret != pconf['remote_app_secret']):
         abort(401)
     user = request.form.get('user')
     if not user:
         abort(400)
     return jsonify({'uri': passwordless.request_token(user, deliver=False)})
+
 
 @app.route('/vote', methods=['POST'])
 def vote():
@@ -384,7 +409,7 @@ def vote():
     how = request.form.get('how')
     redirect_path = request.form.get('redirect_path')
 
-    message, category= _vote(user, eid, how)
+    message, category = _vote(user, eid, how)
     if not redirect_path:
         return jsonify((message, category))
     else:
@@ -393,8 +418,9 @@ def vote():
         flash(message, category)
         return redirect(redirect_path)
 
+
 def _vote(user, eid, how):
-    ERROR, INFO, WARNING, SUCCESS = 'error', 'info', 'warning', 'success'
+    ERROR, SUCCESS = 'error', 'success'
     if not user:
         return 'cannot vote anonymously', ERROR
     if (not eid) or (how not in ['up', 'down']):
@@ -403,7 +429,8 @@ def _vote(user, eid, how):
 
     if how == 'up':
         filt_active_user_voted = vconf['filter_active'].copy()
-        filt_active_user_voted.update(vconf['user_voted'](user, prefilter=True))
+        filt_active_user_voted.update(
+            vconf['user_voted'](user, prefilter=True))
         num_active_user_voted = db.votes.find(filt_active_user_voted).count()
         max_active = vconf['max_active_votes_per_user']
         if num_active_user_voted >= max_active:
@@ -447,6 +474,7 @@ def _vote(user, eid, how):
 
         return vconf['record_vote'](
                 user, {}, db.votes, 'up', filt_for_update), SUCCESS
+
 
 @app.cli.command('make_test_db')
 def make_test_db():
