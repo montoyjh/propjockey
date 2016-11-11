@@ -27,6 +27,9 @@ def set_test_config():
         return [d['wid'] for d in rv]
     ilprn.app.config['WORKFLOWS']['get_workflow_ids'] = get_workflow_ids
 
+    ilprn.app.config['VOTES'].update({'max_active_votes_per_user': 10})
+    ilprn.app.config['NOTIFY'].update({'MAILER': 'null'})
+
     def user_permitted(user):
         if user == 'dwinston@lbl.gov':
             return {'success': True}
@@ -188,9 +191,11 @@ def test_voting(client, db):
     # upvoting and downvoting
     eid = 'mp-995238'
     user_already_requested = 'shyamd@lbl.gov'
-    user_hasnt_requested = 'dwinston@lbl.gov'
+    user_hasnt_requested = str(uuid.uuid4())+'@example.gov'
+
     def try_up(eid=eid):
         return client.post('/vote', data=dict(how='up', eid=eid))
+
     def try_down(eid=eid):
         return client.post('/vote', data=dict(how='down', eid=eid))
 
@@ -317,12 +322,15 @@ def test_deliver_authtoken(client):
 
 
 def test_email_notification(client):
-    # needs to be a module that one can run as a cron job.
+    # needs to be a module that one can run as a cron job
     #
     # Note: there is already an up-and-running cron job for MP apart
     # from ILPRN that can be adapted.
     #
-    # ilprn/notify.py
+    assert ilprn.app.config['NOTIFY']['MAILER'] == 'null'
+    from ilprn.notify import notify
+    # TODO: figure out why `notify()` takes so long with zero requests
+    # needing notification.
     pass
 
 

@@ -2,7 +2,7 @@ import abc
 import logging
 import sys
 
-from .mailgun import Mailgun
+from ilprn.mailers import Mailgun
 
 SUCCESS, INFO, WARNING, ERROR = 'success', 'info', 'warning', 'danger'
 

@@ -1,5 +1,6 @@
 import abc
 
+
 class TokenStore(object):
     __metaclass__ = abc.ABCMeta
 
@@ -17,6 +18,7 @@ class TokenStore(object):
     @abc.abstractmethod
     def get_by_userid(self, userid):
         return
+
 
 class MemoryTokenStore(TokenStore):
     STORE = {}
