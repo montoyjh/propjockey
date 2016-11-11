@@ -2,23 +2,27 @@
 
 from pymongo import MongoClient
 
+
 class Bunch:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
+
 def config_to_uri(cfg):
-    if not 'host' in cfg:
+    if 'host' not in cfg:
         cfg['host'] = 'localhost'
-    if not 'port' in cfg:
+    if 'port' not in cfg:
         cfg['port'] = 27017
-    if not 'username' in cfg:
-        format_str= "mongodb://{host}:{port}/{database}"
+    if 'username' not in cfg:
+        format_str = "mongodb://{host}:{port}/{database}"
     else:
-        format_str= "mongodb://{username}:{password}@{host}:{port}/{database}"
+        format_str = "mongodb://{username}:{password}@{host}:{port}/{database}"
     return format_str.format(**cfg)
+
 
 def mongoconnect(cfg, connect=False):
     return MongoClient(config_to_uri(cfg), connect=connect)
+
 
 def get_collection(connector, config, name):
     conn, cfg, n = connector, config, name

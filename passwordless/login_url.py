@@ -1,5 +1,6 @@
 import abc
 
+
 class LoginURL(object):
     __metaclass__ = abc.ABCMeta
 
@@ -13,6 +14,7 @@ class LoginURL(object):
     @abc.abstractmethod
     def parse(self, request):
         return
+
 
 class PlainLoginURL(LoginURL):
     def generate(self, token, userid):
