@@ -1,4 +1,5 @@
 from operator import itemgetter
+from functools import wraps
 
 from flask import Flask, session, redirect, url_for, request
 from flask import g, jsonify, render_template, flash, abort
@@ -33,12 +34,19 @@ def set_test_config():
     app.config['WORKFLOWS']['get_workflow_ids'] = get_workflow_ids
 
 
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if 'user' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return wrapper
+
+
 @app.route('/')
+@login_required
 def index():
-    if 'user' in session:
-        return redirect(url_for('rows', format='html'))
-    else:
-        return redirect(url_for('login'))
+    return redirect(url_for('rows', format='html'))
 
 
 def connect_collections():
@@ -184,6 +192,7 @@ def _rows_params():
 
 
 @app.route('/rows')
+@login_required
 def rows():
     params = _rows_params()
     user_only = params['user_only']

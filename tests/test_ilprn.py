@@ -2,6 +2,7 @@ import json
 from itertools import tee, izip, groupby
 from operator import itemgetter
 import re
+import uuid
 
 import pytest
 from ilprn import ilprn
@@ -16,20 +17,27 @@ def pairwise(iterable):
 
 
 def set_test_config():
-    def get_workflow_ids(eids, coll):
-        rv = sorted(coll.find({'eid': {'$in': eids}}), key=itemgetter('eid'))
-        return [d['wid'] for d in rv]
-
     ilprn.app.config['CLIENTS'] = {
         k: {'database': 'ilprn_test', 'collection': k}
         for k in ['votes', 'entries', 'workflows']
     }
+
+    def get_workflow_ids(eids, coll):
+        rv = sorted(coll.find({'eid': {'$in': eids}}), key=itemgetter('eid'))
+        return [d['wid'] for d in rv]
     ilprn.app.config['WORKFLOWS']['get_workflow_ids'] = get_workflow_ids
+
+    def user_permitted(user):
+        if user == 'dwinston@lbl.gov':
+            return {'success': True}
+        else:
+            return {'success': False, 'text': 'Better luck next time.'}
     ilprn.app.config['PASSWORDLESS'] = {
         'TOKEN_STORE': 'mongo',
         'DELIVERY_METHOD': 'null',
         'LOGIN_URL': 'plain',
         'dbname': 'ilprn_test',
+        'user_permitted': user_permitted,
     }
 
 
@@ -41,6 +49,7 @@ def client(request):
     client = ilprn.app.test_client()
     ctx = ilprn.app.test_request_context()
     ctx.push()
+    login(client, str(uuid.uuid4())+'@example.gov')
     return client
 
 
@@ -185,6 +194,7 @@ def test_voting(client, db):
     def try_down(eid=eid):
         return client.post('/vote', data=dict(how='down', eid=eid))
 
+    logout(client)
     rv = try_up()
     assert 'cannot vote anonymously' in rv.data
     rv = try_down()
@@ -281,15 +291,29 @@ def test_authtoken_gen_and_fulfillment(client):
     assert 'bad user email or token' in rv.data
 
 
-def test_email_authtoken(client):
-    # Need to verify from external API that user is authorized to use
-    # this instance of ILPRN. Once that is confirmed, send email.  If
-    # not confirmed, send email saying to go to MP and sign up.
+def test_deliver_authtoken(client):
+    # Verify (e.g. via external API) that user is authorized to use
+    # this instance of ILPRN. Once that is confirmed, send email with
+    # login link.  If not confirmed, send email e.g. saying that
+    # registration with external service is required.
     #
     # Note: this feature is not strictly necessary if users only
     # arrive to the ILPRN web interface via tokenized links requested
     # by the remote app.
-    pass
+    pconf = ilprn.pconf
+    not_registered_user = str(uuid.uuid4())+'@example.gov'
+    registered_user = 'dwinston@lbl.gov'
+    permitted = pconf['user_permitted'](not_registered_user)
+    assert not permitted['success'] and len(permitted['text']) > 0
+    permitted = pconf['user_permitted'](registered_user)
+    assert permitted['success']
+
+    message, category = ilprn.passwordless.request_token(
+        user=registered_user, deliver=True)
+    assert category == 'success'
+    message, category = ilprn.passwordless.request_token(
+        user=not_registered_user, deliver=True)
+    assert category == 'warning'
 
 
 def test_email_notification(client):
@@ -297,6 +321,8 @@ def test_email_notification(client):
     #
     # Note: there is already an up-and-running cron job for MP apart
     # from ILPRN that can be adapted.
+    #
+    # ilprn/notify.py
     pass
 
 
@@ -326,8 +352,8 @@ def test_app_auth(client):
 
 
 def test_auth_lockdown(client):
-    # Now that tokenized urls are available, ensure all scaffolding
-    # for easy user login for testing is stripped away. Can refactor
-    # the `login(client, user)` test method to generate token urls
-    # under the hood.
-    pass
+    logout(client)
+    rv = client.get('/', follow_redirects=True)
+    assert 'user@example.gov' in rv.data
+    rv = client.get('/rows', follow_redirects=True)
+    assert 'user@example.gov' in rv.data

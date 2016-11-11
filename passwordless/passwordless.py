@@ -3,6 +3,7 @@ from .token_store import TOKEN_STORES
 from .login_url import LOGIN_URLS
 from .delivery_methods import DELIVERY_METHODS
 
+
 class Passwordless(object):
     def __init__(self, app=None):
         self.app = app
@@ -24,14 +25,18 @@ class Passwordless(object):
         login_url = config['LOGIN_URL']
         self.login_url = LOGIN_URLS[login_url](app.config)
 
+        self.user_permitted = config.get('user_permitted', lambda user: True)
+
     def request_token(self, user, deliver=True):
         token = uuid.uuid4().hex
         self.token_store.store_or_update(token, user)
-        token_uri = self.login_url.generate(token, user)
+        login_url = self.login_url.generate(token, user)
+        permitted = self.user_permitted(user)
         if deliver:
-            return self.delivery_method(token_uri, email=user)
+            return self.delivery_method(
+                login_url, email=user, permitted=permitted)
         else:
-            return token_uri
+            return login_url
 
     def authenticate(self, flask_request):
         token, uid = self.login_url.parse(flask_request)
