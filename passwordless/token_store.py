@@ -1,5 +1,7 @@
 import abc
 
+from ilprn.util import mongoconnect
+
 
 class TokenStore(object):
     __metaclass__ = abc.ABCMeta
@@ -35,14 +37,10 @@ class MemoryTokenStore(TokenStore):
 
 class MongoTokenStore(TokenStore):
     def __init__(self, config):
-        from pymongo import MongoClient
-        self.dbname = config.get('dbname', 'tokenstore')
-        self.dbhost = config.get('dbhost', 'localhost')
-        self.dbport = config.get('dbport', 27017)
-        self.client = MongoClient(self.dbhost, self.dbport)
-        self.db = self.client[self.dbname]
-        self.collection_name = config.get('collection', 'tokenstore')
-        self.collection = self.db[self.collection_name]
+        ts_config = config['tokenstore_client']
+        self.client = mongoconnect(ts_config)
+        self.db = self.client[ts_config['database']]
+        self.collection = self.db[ts_config['collection']]
         self.collection.create_index("userid")
 
     def store_or_update(self, token, userid, ttl=None, origin=None):

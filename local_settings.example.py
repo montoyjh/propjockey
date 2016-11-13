@@ -174,7 +174,10 @@ def user_permitted(user):
 PASSWORDLESS = {
     'LOGIN_URL': 'plain',
     'TOKEN_STORE': 'mongo',
-    'dbname': 'ilprn_test',
+    'tokenstore_client': {
+        'database': 'ilprn_test',
+        'collection': 'tokenstore',
+    },
     'DELIVERY_METHOD': 'mailgun',
     'user_permitted': user_permitted,
     'remote_app_id': 'APP_ID',
