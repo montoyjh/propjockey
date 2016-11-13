@@ -1,5 +1,19 @@
 # Interactive Leaderboard for Property Requests and Notification (ILPRN).
 
+ILPRN is a way for staff managing scientific computing resources to
+facilitate a user community voting to prioritize calculation of
+properties across a database of known entities. For example, across a
+database of entities corresponding to known crystalline materials, the
+full elastic tensor may not already be calculated for each material
+because such a calculation is computationally expensive.
+
+The staff managing the growth and dissemination of this database of
+material structures and properties wishes to empower the community of
+users consuming the data to help prioritize computational jobs in a
+way that will dovetail with in-house priorities. ILPRN helps with
+this, connecting users to details of running workflows and providing
+email notification when property calculations complete.
+
 ## Development
 
 In a fresh virtualenv:
