@@ -1,4 +1,4 @@
-# Interactive Leaderboard for Property Requests and Notification (ILPRN).
+# Interactive Leaderboard for Property Requests and Notification (ILPRN)
 
 ILPRN is a way for staff managing scientific computing resources to
 facilitate a user community voting to prioritize calculation of
