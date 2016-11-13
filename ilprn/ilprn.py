@@ -31,7 +31,7 @@ def set_test_config():
         k: {'database': 'ilprn_test', 'collection': k}
         for k in ['votes', 'entries', 'workflows']
     }
-    app.config['WORKFLOWS']['get_workflow_ids'] = get_workflow_ids
+    wconf['get_workflow_ids'] = get_workflow_ids
 
 
 def login_required(f):
@@ -490,23 +490,29 @@ def make_test_db():
     from pymongo import MongoClient
     client = MongoClient()
     tdb = client.ilprn_test
+    using_test_clients = app.config['USE_TEST_CLIENTS']
+    app.config['USE_TEST_CLIENTS'] = False
     db = get_collections()
+    app.config['USE_TEST_CLIENTS'] = using_test_clients
 
     tdb.votes.drop()
-    tdb.votes.insert_many(list(db.votes.find()))
-    print(tdb.votes.count())
+    tdb.votes.insert_many(db.votes.find())
+    from util import make_requesters_aliases, set_requesters_aliases
+    alias_map = make_requesters_aliases(tdb.votes, vconf['requesters'])
+    set_requesters_aliases(tdb.votes, vconf['requesters'], alias_map)
+    print("{} votes".format(tdb.votes.count()))
 
     entry_ids = [d[vconf['entry_id']] for d in tdb.votes.find()]
     wids = get_workflow_ids(entry_ids)
     tdb.workflows.drop()
     tdb.workflows.insert_many([{'eid': eid, 'wid': wid} for (eid, wid)
                                in zip(entry_ids, wids) if wid])
-    print(tdb.workflows.count())
+    print("{} workflows".format(tdb.workflows.count()))
 
     tdb.entries.drop()
     proj = {f: 1 for f in econf['filter_fields']}
     proj.update(entry_projection())
     tdb.entries.insert_many(list(db.entries.find({}, proj)))
-    print(tdb.entries.count())
+    print("{} entries".format(tdb.entries.count()))
 
-app.secret_key = '&WB:\xab\xbe\xdc-\xa8v-\xfc+\xd0d_\x15\xc4!\x91N\xcbH\xe6'
+app.secret_key = app.config['APP_SECRET_KEY']

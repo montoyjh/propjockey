@@ -15,6 +15,8 @@ def pairwise(iterable):
     next(b, None)
     return izip(a, b)
 
+permitted_test_user = str(uuid.uuid4())+'@example.gov'
+
 
 def set_test_config():
     ilprn.app.config['CLIENTS'] = {
@@ -31,28 +33,30 @@ def set_test_config():
     ilprn.app.config['NOTIFY'].update({'MAILER': 'null'})
 
     def user_permitted(user):
-        if user == 'dwinston@lbl.gov':
+        print(user)
+        if user == permitted_test_user:
             return {'success': True}
         else:
             return {'success': False, 'text': 'Better luck next time.'}
-    ilprn.app.config['PASSWORDLESS'] = {
+    ilprn.app.config['PASSWORDLESS'].update({
         'TOKEN_STORE': 'mongo',
         'DELIVERY_METHOD': 'null',
         'LOGIN_URL': 'plain',
         'dbname': 'ilprn_test',
         'user_permitted': user_permitted,
-    }
+    })
 
 
 @pytest.fixture
-def client(request):
+def client(request, user_unknown):
     ilprn.app.config['TESTING'] = True
     set_test_config()
+    assert ilprn.app.config['PASSWORDLESS']['DELIVERY_METHOD'] == 'null'
     ilprn.passwordless = Passwordless(ilprn.app)
     client = ilprn.app.test_client()
     ctx = ilprn.app.test_request_context()
     ctx.push()
-    login(client, str(uuid.uuid4())+'@example.gov')
+    login(client, user_unknown)
     return client
 
 
@@ -60,6 +64,59 @@ def client(request):
 def db():
     with ilprn.app.app_context():
         return ilprn.get_collections()
+
+
+@pytest.fixture
+def user_with_completed(db):
+    doc = db.votes.find_one(ilprn.vconf['filter_completed'])
+    return doc[ilprn.vconf['requesters']][0]
+
+
+@pytest.fixture
+def user_with_top_active_entry(db):
+    vconf = ilprn.vconf
+    doc = db.votes.find_one(vconf['filter_active'],
+                            sort=[(vconf['nvotes'], -1)])
+    return doc[vconf['requesters']][0], str(doc[vconf['entry_id']])
+
+
+@pytest.fixture
+def user_with_few_votes(db):
+    vconf = ilprn.vconf
+
+    def n_active_votes(user):
+        filt = {vconf['requesters']: user}
+        filt.update(vconf['filter_active'])
+        return db.votes.find(filt).count()
+
+    for doc in db.votes.find(vconf['filter_active']):
+        for user in doc[vconf['requesters']]:
+            if n_active_votes(user) < ilprn.econf['rows_per_page']:
+                return user
+    raise Exception("No user found without a pageful of active votes.")
+
+
+@pytest.fixture
+def user_unknown():
+    return str(uuid.uuid4())+'@example.gov'
+
+
+@pytest.fixture
+def entryid_top(db):
+    vconf = ilprn.vconf
+    doc = db.votes.find_one(vconf['filter_active'],
+                            sort=[(vconf['nvotes'], -1)])
+    return str(doc[vconf['entry_id']])
+
+
+@pytest.fixture
+def eid_inactive_missing(db):
+    econf, vconf = ilprn.econf, ilprn.vconf
+    for e in db.entries.find({}, {econf['e_id']: 1, '_id': 0}):
+        eid = e[econf['e_id']]
+        if db.votes.find_one({vconf['entry_id']: eid}) is None:
+            return eid
+    raise Exception("All entries have votes.")
 
 
 def login(client, user):
@@ -120,9 +177,9 @@ def test_active_withfilter_incrvotes(client):
     assert all(ri['nvotes'] <= rj['nvotes'] for ri, rj in pairwise(rows))
 
 
-def test_login_logout(client):
+def test_login_logout(client, user_unknown):
     """Make sure login and logout works"""
-    user = 'dwinston@lbl.gov'
+    user = user_unknown
     rv = login(client, user)
     assert 'Logged in as' in rv.data
     assert user in rv.data
@@ -130,10 +187,10 @@ def test_login_logout(client):
     assert 'user@example.gov' in rv.data
 
 
-def test_nofilter_onlymyvotes(client):
+def test_nofilter_onlymyvotes(client, user_with_completed):
     # Should return only entries for which user has upvoted,
     # including completed entries.
-    user = 'dwinston@lbl.gov'
+    user = user_with_completed
     login(client, user)
     rv = client.get('/rows?useronly=true&psize=500')
     rows = get_rows(rv)
@@ -142,10 +199,10 @@ def test_nofilter_onlymyvotes(client):
     assert any(r.get('p_link') for r in rows)
 
 
-def test_toggle_onlymyvotes(client):
+def test_toggle_onlymyvotes(client, user_with_few_votes):
     # Regression test to guard against overwriting
     # app.config['VOTES']['filter_active'].
-    user = 'shyamd@lbl.gov'
+    user = user_with_few_votes
     login(client, user)
     rv = client.get('/rows?useronly=true')
     rows = get_rows(rv)
@@ -187,11 +244,11 @@ def test_paginaton(client):
     assert [r['id'] for r in rows_accum] == [r['id'] for r in rows_oneshot]
 
 
-def test_voting(client, db):
+def test_voting(client, db, user_with_top_active_entry, user_unknown,
+                eid_inactive_missing):
     # upvoting and downvoting
-    eid = 'mp-995238'
-    user_already_requested = 'shyamd@lbl.gov'
-    user_hasnt_requested = str(uuid.uuid4())+'@example.gov'
+    user_already_requested, eid = user_with_top_active_entry
+    user_hasnt_requested = user_unknown
 
     def try_up(eid=eid):
         return client.post('/vote', data=dict(how='up', eid=eid))
@@ -205,6 +262,8 @@ def test_voting(client, db):
     rv = try_down()
     assert 'cannot vote anonymously' in rv.data
 
+    max_votes = ilprn.vconf['max_active_votes_per_user']
+    ilprn.vconf['max_active_votes_per_user'] = db.votes.count() + 1
     login(client, user_already_requested)
     rv = try_up()
     assert 'cannot upvote twice' in rv.data
@@ -213,6 +272,7 @@ def test_voting(client, db):
     rv = try_up()
     assert 'upvoted' in rv.data and 'success' in rv.data
     logout(client)
+    ilprn.vconf['max_active_votes_per_user'] = max_votes
 
     login(client, user_hasnt_requested)
     rv = try_down()
@@ -223,7 +283,6 @@ def test_voting(client, db):
     assert 'downvoted' in rv.data and 'success' in rv.data
 
     # upvote something without a votedoc
-    eid_inactive_missing = 'mp-21050'
     vconf = ilprn.vconf
     filt = {vconf['entry_id']: eid_inactive_missing,
             vconf['prop_field']: vconf['prop_value']}
@@ -233,21 +292,21 @@ def test_voting(client, db):
     db.votes.delete_one(filt)
 
 
-def test_form_ui_and_table_display(client):
-    user = 'maartendft@gmail.com'
+def test_form_ui_and_table_display(client, user_with_top_active_entry):
+    user, eid = user_with_top_active_entry
     login(client, user)
     rv = client.get('/', follow_redirects=True)
-    assert "mp-24850" in rv.data
+    assert eid in rv.data
     # Pagination
     assert 'Next' in rv.data
     rv = client.get('/rows?format=html&pnum=1')
     assert 'Previous' in rv.data
 
 
-def test_webui_voting(client):
+def test_webui_voting(client, user_unknown, user_with_top_active_entry):
     # doesn't actually do 'click testing' of UI, but exercises endpoint.
-    user = 'shyamd@lbl.gov'
-    eid = 'mp-25015'
+    user = user_unknown
+    _, eid = user_with_top_active_entry
     login(client, user)
     assert eid in client.get('/rows?format=html').data
     rv = client.post(
@@ -268,12 +327,13 @@ def test_webui_voting(client):
             and 'Log out' in rv.data)
 
 
-def test_votelimit(client):
+def test_votelimit(client, user_unknown):
     # Each user has vconf['max_active_votes_per_user'] votes.
-    user = 'dwinston@lbl.gov'
+    user = user_unknown
     login(client, user)
     n = ilprn.vconf['max_active_votes_per_user']
-    rv = client.get('/rows?psize={}&filter=*-O&format=json'.format(n))
+    assert n <= 30  # Ensure reasonably small test setting
+    rv = client.get('/rows?psize={}&filter=*-O&format=json'.format(n+1))
     eids = [r['id'] for r in json.loads(rv.data)['rows']]
     data = []
     for eid in eids:
@@ -283,11 +343,12 @@ def test_votelimit(client):
         client.post('/vote', data=dict(how='down', eid=eid))
 
 
-def test_authtoken_gen_and_fulfillment(client):
+def test_authtoken_gen_and_fulfillment(client, user_unknown):
+    user = user_unknown
     token_uri = ilprn.passwordless.request_token(
-        user='dwinston@lbl.gov', deliver=False)
+        user=user, deliver=False)
     assert ('authenticate?token=' in token_uri and
-            '&uid=dwinston@lbl.gov' in token_uri)
+            '&uid={}'.format(user) in token_uri)
     m = re.match('.*?//.*?(/.*)', token_uri)
     path = m.group(1)
     rv = client.get(path, follow_redirects=True)
@@ -296,7 +357,7 @@ def test_authtoken_gen_and_fulfillment(client):
     assert 'bad user email or token' in rv.data
 
 
-def test_deliver_authtoken(client):
+def test_deliver_authtoken(client, user_unknown):
     # Verify (e.g. via external API) that user is authorized to use
     # this instance of ILPRN. Once that is confirmed, send email with
     # login link.  If not confirmed, send email e.g. saying that
@@ -306,11 +367,12 @@ def test_deliver_authtoken(client):
     # arrive to the ILPRN web interface via tokenized links requested
     # by the remote app.
     pconf = ilprn.pconf
-    not_registered_user = str(uuid.uuid4())+'@example.gov'
-    registered_user = 'dwinston@lbl.gov'
+    not_registered_user = user_unknown
+    registered_user = permitted_test_user
     permitted = pconf['user_permitted'](not_registered_user)
     assert not permitted['success'] and len(permitted['text']) > 0
     permitted = pconf['user_permitted'](registered_user)
+    print(permitted)
     assert permitted['success']
 
     message, category = ilprn.passwordless.request_token(
@@ -334,25 +396,26 @@ def test_email_notification(client):
     pass
 
 
-def test_app_auth(client):
+def test_app_auth(client, user_unknown):
     # Be able to get data on behalf of user given app id and token.
     # In this way, one can build a service that consumes ilprn data.
     #
     # E.g. be able to vote using app id and token in request header.
     #
     # given MP app id and token, I want to get a token_uri for any user.
+    user = user_unknown
     pconf = ilprn.pconf
     app_id, app_secret = pconf['remote_app_id'], pconf['remote_app_secret']
-    rv = client.post('/authtoken', data=dict(user='dwinston@lbl.gov'))
+    rv = client.post('/authtoken', data=dict(user=user))
     assert rv.status_code == 401
     rv = client.post('/authtoken', data=dict(
-        user='dwinston@lbl.gov',
+        user=user,
         app_id='letsget',
         app_secret='dangerous'
     ))
     assert rv.status_code == 401
     rv = client.post('/authtoken', data=dict(
-        user='dwinston@lbl.gov',
+        user=user,
         app_id=app_id,
         app_secret=app_secret
     ))

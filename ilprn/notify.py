@@ -72,6 +72,9 @@ def notify():
         if hasattr(response, 'status_code') and response.status_code == 200:
             print("Sent summary to staff. {} entries done.".format(n_entries))
         responses.append(response)
+    else:
+        print("No notifications required for votes collection {}".format(
+            vcoll))
 
     return responses
 
