@@ -7,6 +7,7 @@ setup(
     install_requires=[
         'flask',
         'pymongo',
+        'toolz',
     ],
     setup_requires=[
         'pytest-runner',
