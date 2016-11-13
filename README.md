@@ -86,7 +86,7 @@ An example proxy setup is described at the official Flask
 documentation
 [here](http://flask.pocoo.org/docs/0.11/deploying/wsgi-standalone/#proxy-setups).
 
-## Running Email Notifcation as a Cron Job
+## Running Email Notification as a Cron Job
 
 ```
 # activate the virtualenv
