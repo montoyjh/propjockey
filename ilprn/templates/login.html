@@ -10,6 +10,7 @@
           <label for="user">Email address</label>
           <input type="email" class="form-control" required
                  name="user" placeholder="user@example.gov">
+          <input class="honey" type="text" name="honey" value="" />
         </div>
         {% set a = remote_app %}
         <span class="help-block">Be sure your email address above is
@@ -19,4 +20,10 @@
     </div>
   </div>
 </div>
+{% endblock %}
+{% block pagescript %}
+{{ super() }}
+<script>
+ $("input.honey").addClass("hidden");
+</script>
 {% endblock %}

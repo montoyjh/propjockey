@@ -371,8 +371,9 @@ def votedoc_projection():
 def login():
     if request.method == 'POST':
         user = request.form['user']
-        message, category = passwordless.request_token(user)
-        flash(message, category)
+        if request.form['honey'] == '':
+            message, category = passwordless.request_token(user)
+            flash(message, category)
         return redirect(url_for('index'))
     return render_template(
         'login.html',
