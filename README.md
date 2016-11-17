@@ -14,6 +14,8 @@ way that will dovetail with in-house priorities. ILPRN helps with
 this, connecting users to details of running workflows and providing
 email notification when property calculations complete.
 
+Example deployment: http://elastic.ilprn.materialsproject.org/.
+
 ## Development
 
 In a fresh virtualenv:
