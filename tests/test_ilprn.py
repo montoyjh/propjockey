@@ -181,7 +181,7 @@ def test_login_logout(client, user_unknown):
     """Make sure login and logout works"""
     user = user_unknown
     rv = login(client, user)
-    assert 'Logged in as' in rv.data
+    assert 'Log out' in rv.data
     assert user in rv.data
     rv = logout(client)
     assert 'user@example.gov' in rv.data

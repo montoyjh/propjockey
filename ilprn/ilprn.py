@@ -157,6 +157,7 @@ def format_rows(data):
         r['description'] = econf['describe_entry_html'](r['description'])
     return render_template(
         'index.html',
+        prop_displayname=econf['prop_displayname'],
         rows=rows,
         params=params,
         extrasort_label=extrasort_label,

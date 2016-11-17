@@ -44,6 +44,7 @@ ENTRIES = {
     'description_fields': ['pretty_formula', 'spacegroup.symbol'],
     'describe_entry': describe_entry,
     'describe_entry_html': describe_entry_html,
+    'prop_displayname': 'elasticity',
     'filter': {
         'placeholder': 'Fe-O',
         'transform': MPRester.parse_criteria
