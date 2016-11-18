@@ -16,6 +16,8 @@ email notification when property calculations complete.
 
 Example deployment: http://elastic.ilprn.materialsproject.org/.
 
+[Science Gateways 2016](http://sciencegateways.org/gateways2016/) conference: [extended abstract](docs/gateways2016-extended-abstract.pdf) and [talk slides](docs/gateways2016-talk-slides.pdf).
+
 ## Development
 
 In a fresh virtualenv:
