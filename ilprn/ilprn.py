@@ -77,6 +77,9 @@ def tablerow_data((votedoc, entry, w_id), prop_missing=True):
     entry['id'] = entry[econf['e_id']]
     entry['e_link'] = econf['url_for_entry'].format(e_id=entry['id'])
     entry['extrasort'] = entry[econf['extrasort']['field']]
+    xform = econf['extrasort'].get('transform')
+    if xform:
+        entry['extrasort'] = xform(entry['extrasort'])
     if w_id:
         entry['w_link'] = wconf['url_for'].format(w_id=w_id)
     for k, _ in entry.items():

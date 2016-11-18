@@ -26,6 +26,9 @@ def describe_entry_html(description):
                         spacegroup)
     return "{} {}".format(formula, spacegroup)
 
+def to_meV_and_round(v):
+    return round(1000 * v, 3)
+
 ENTRIES = {
     'has_property': {
         'elasticity': {'$exists': True}
@@ -36,7 +39,8 @@ ENTRIES = {
     'e_id': 'task_id',
     'extrasort': {
         'field': 'e_above_hull',
-        'label': 'E above hull / atom (eV)',
+        'label': 'E above hull / atom (meV)',
+        'transform': to_meV_and_round,
         'default': pymongo.ASCENDING
     },
     'url_for_entry': 'https://materialsproject.org/materials/{e_id}',
