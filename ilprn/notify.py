@@ -6,7 +6,11 @@ from ilprn import connect_collections, econf, vconf, app
 
 def notify():
     nconf = app.config['NOTIFY']
-    mailer = MAILERS[nconf['MAILER']]
+    Mailer = MAILERS[nconf['MAILER']]
+    mailer_config = None
+    if nconf['MAILER'] == 'mailgun':
+        mailer_config = app.config['MAILGUN']
+    mailer = Mailer(mailer_config)
     db = connect_collections()
     vcoll = db.votes
     ecoll = db.entries
