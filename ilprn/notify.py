@@ -35,7 +35,7 @@ def notify():
             "to": r[vconf['requesters']],
             "subject": nconf['user_subject'].format(eid),
             "text": nconf['user_text'].format(
-                eid, econf['url_for_prop'].format(eid)),
+                eid, econf['url_for_prop'].format(e_id=eid)),
             "from": nconf['from'],
             "use_bcc": True,
             "to_for_bcc": nconf['to_for_bcc'],
@@ -53,7 +53,8 @@ def notify():
             eid=r[vconf['entry_id']],
             n=r[vconf['nrequesters']],
             s='s' if r[vconf['nrequesters']] > 1 else '',
-            url_for_prop=econf['url_for_prop'].format(r[vconf['entry_id']])
+            url_for_prop=econf['url_for_prop'].format(
+                e_id=r[vconf['entry_id']])
         )
         for r in requests_with_notification_sent])
 
