@@ -55,8 +55,8 @@ def notify():
     body_staff = "\n".join([
         nconf['staff_text'].format(
             eid=r[vconf['entry_id']],
-            n=r[vconf['nrequesters']],
-            s='s' if r[vconf['nrequesters']] > 1 else '',
+            n=r[vconf['nvotes']],
+            s='s' if r[vconf['nvotes']] > 1 else '',
             url_for_prop=econf['url_for_prop'].format(
                 e_id=r[vconf['entry_id']])
         )
