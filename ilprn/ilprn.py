@@ -377,6 +377,8 @@ def votedoc_projection():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if passwordless.app is None:
+        passwordless.init_app(app)
     if request.method == 'POST':
         user = request.form['user']
         if request.form['honey'] == '':
