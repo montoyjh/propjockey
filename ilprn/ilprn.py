@@ -19,7 +19,7 @@ vconf = app.config['VOTES']
 wconf = app.config['WORKFLOWS']
 pconf = app.config['PASSWORDLESS']
 
-passwordless = Passwordless(app)
+passwordless = Passwordless()
 
 
 def set_test_config():
@@ -30,6 +30,10 @@ def set_test_config():
     app.config['CLIENTS'] = {
         k: {'database': 'ilprn_test', 'collection': k}
         for k in ['votes', 'entries', 'workflows']
+    }
+    app.config['PASSWORDLESS']['tokenstore_client'] = {
+        'database': 'ilprn_test',
+        'collection': 'auth_tokens'
     }
     wconf['get_workflow_ids'] = get_workflow_ids
 
@@ -53,6 +57,7 @@ def connect_collections():
     """Connects to and provides handles to the MongoDB collections."""
     if app.config.get('USE_TEST_CLIENTS'):
         set_test_config()
+    passwordless.init_app(app)
     clients_config = app.config['CLIENTS']
     b = Bunch()
     b.clients = {name: mongoconnect(clients_config[name])
