@@ -112,24 +112,6 @@ VOTES = {
     'requesters_notified': 'requesters_notified',
 }
 
-NOTIFY = {
-    'MAILER': 'mailgun',
-    'user_text': ("You voted, perhaps by requesting a prediction of "
-                  "elastic bulk moduli, for the full elastic tensor "
-                  "and associated properties of material {} to be "
-                  "calculated. This data is now online at {}.\n\n"
-                  "Thank you,\nMaterials Project team"),
-    'user_subject': "Elasticity data for {} is online",
-    'from': ("Elasticity Requests "
-             "<elastiquests@example.gov>"),
-    'to_for_bcc': "noreply@example.gov",
-    'staff_text': ("Sent notification about {eid} "
-                   "to {n} requester{s}.\n"
-                   "Data online at {url_for_prop}\n"),
-    'staff_to': "elastiquests-staff@example.gov",
-    'staff_subject': "Sent notifications about {} materials to {} users",
-}
-
 USE_TEST_CLIENTS = True
 CLIENTS = {
     'votes': {
@@ -189,6 +171,24 @@ PASSWORDLESS = {
     'remote_app_secret': 'APP_SECRET',
     'remote_app_name': 'Materials Project',
     'remote_app_uri': 'https://materialsproject.org',
+}
+
+NOTIFY = {
+    'MAILER': 'mailgun',
+    'user_text': ("You voted, perhaps by requesting a prediction of "
+                  "elastic bulk moduli, for the full elastic tensor "
+                  "and associated properties of material {} to be "
+                  "calculated. This data is now online at {}.\n\n"
+                  "Thank you,\nMaterials Project team"),
+    'user_subject': "Elasticity data for {} is online",
+    'from': ("Elasticity Requests "
+             "<elastiquests@example.gov>"),
+    'to_for_bcc': "noreply@example.gov",
+    'staff_text': ("Sent notification about {eid} "
+                   "to {n} requester{s}.\n"
+                   "Data online at {url_for_prop}\n"),
+    'staff_to': "elastiquests-staff@example.gov",
+    'staff_subject': "Sent notifications about {} materials to {} users",
 }
 
 MAILGUN = {
