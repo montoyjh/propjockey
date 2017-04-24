@@ -5,7 +5,7 @@ calculation of properties across a database of known entities. For
 example, across a database of entities corresponding to known
 crystalline materials, the full elastic tensor may not already be
 calculated for each material because such a calculation is
-computationally expensive.
+computationally expensive, not of interest for all materials, etc.
 
 The staff managing the growth and dissemination of this database of
 material structures and properties wishes to empower the community of
