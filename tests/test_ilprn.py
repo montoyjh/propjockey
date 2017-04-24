@@ -112,11 +112,12 @@ def entryid_top(db):
 @pytest.fixture
 def eid_inactive_missing(db):
     econf, vconf = ilprn.econf, ilprn.vconf
-    for e in db.entries.find({}, {econf['e_id']: 1, '_id': 0}):
+    for e in db.entries.find(econf['missing_property'],
+                             {econf['e_id']: 1, '_id': 0}):
         eid = e[econf['e_id']]
         if db.votes.find_one({vconf['entry_id']: eid}) is None:
             return eid
-    raise Exception("All entries have votes.")
+    raise Exception("All entries missing property have votes.")
 
 
 def login(client, user):
