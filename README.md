@@ -30,7 +30,7 @@ In a fresh virtualenv:
 pip install -e .
 export FLASK_APP=propjockey
 export FLASK_DEBUG=1
-export ILPRN_SETTINGS=$(pwd)/local_settings.py
+export PROPJOCKEY_SETTINGS=$(pwd)/local_settings.py
 flask run
 ```
 
@@ -100,6 +100,6 @@ documentation
 # activate the virtualenv
 # cd to directory with local_settings.py
 # Ensure `USE_TEST_CLIENTS` local setting is False
-export ILPRN_SETTINGS=$(pwd)/local_settings.py
+export PROPJOCKEY_SETTINGS=$(pwd)/local_settings.py
 python -m propjockey.notify
 ```

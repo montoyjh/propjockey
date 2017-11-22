@@ -12,7 +12,7 @@ from passwordless import Passwordless
 
 app = Flask(__name__)
 
-app.config.from_envvar('ILPRN_SETTINGS', silent=True)
+app.config.from_envvar('PROPJOCKEY_SETTINGS', silent=True)
 
 econf = app.config['ENTRIES']
 vconf = app.config['VOTES']

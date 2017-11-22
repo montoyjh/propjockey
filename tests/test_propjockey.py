@@ -360,12 +360,12 @@ def test_authtoken_gen_and_fulfillment(client, user_unknown):
 
 def test_deliver_authtoken(client, user_unknown):
     # Verify (e.g. via external API) that user is authorized to use
-    # this instance of ILPRN. Once that is confirmed, send email with
+    # this instance of Propjockey. Once that is confirmed, send email with
     # login link.  If not confirmed, send email e.g. saying that
     # registration with external service is required.
     #
     # Note: this feature is not strictly necessary if users only
-    # arrive to the ILPRN web interface via tokenized links requested
+    # arrive to the Propjockey web interface via tokenized links requested
     # by the remote app.
     pconf = propjockey.pconf
     not_registered_user = user_unknown
@@ -388,7 +388,7 @@ def test_email_notification(client):
     # needs to be a module that one can run as a cron job
     #
     # Note: there is already an up-and-running cron job for MP apart
-    # from ILPRN that can be adapted.
+    # from Propjockey that can be adapted.
     #
     assert propjockey.app.config['NOTIFY']['MAILER'] == 'null'
     from propjockey.notify import notify
