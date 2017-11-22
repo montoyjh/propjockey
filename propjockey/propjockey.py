@@ -19,7 +19,9 @@ vconf = app.config['VOTES']
 wconf = app.config['WORKFLOWS']
 pconf = app.config['PASSWORDLESS']
 
-passwordless = Passwordless()
+if app.config.get('USE_TEST_CLIENTS'):
+    set_test_config()
+passwdless = Passwordless(app)
 
 
 def set_test_config():
@@ -55,9 +57,6 @@ def index():
 
 def connect_collections():
     """Connects to and provides handles to the MongoDB collections."""
-    if app.config.get('USE_TEST_CLIENTS'):
-        set_test_config()
-    passwordless.init_app(app)
     clients_config = app.config['CLIENTS']
     b = Bunch()
     b.clients = {name: mongoconnect(clients_config[name])
@@ -377,12 +376,10 @@ def votedoc_projection():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if passwordless.app is None:
-        passwordless.init_app(app)
     if request.method == 'POST':
         user = request.form['user']
         if request.form['honey'] == '':
-            message, category = passwordless.request_token(user)
+            message, category = passwdless.request_token(user)
             flash(message, category)
         return redirect(url_for('index'))
     return render_template(
@@ -394,7 +391,7 @@ def login():
 
 @app.route('/authenticate')
 def authenticate():
-    if passwordless.authenticate(request):
+    if passwdless.authenticate(request):
         session['user'] = request.args.get('uid')
         return redirect(url_for('index'))
     else:
@@ -420,7 +417,7 @@ def authtoken():
     user = request.form.get('user')
     if not user:
         abort(400)
-    return jsonify({'uri': passwordless.request_token(user, deliver=False)})
+    return jsonify({'uri': passwdless.request_token(user, deliver=False)})
 
 
 @app.route('/vote', methods=['POST'])
