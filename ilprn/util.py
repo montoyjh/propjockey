@@ -1,4 +1,4 @@
-"""Collection of helper utilities for the main ilprn application."""
+"""Collection of helper utilities for the main propjockey application."""
 
 import uuid
 

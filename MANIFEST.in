@@ -1,2 +1,2 @@
-graft ilprn/templates
-graft ilprn/static
+graft propjockey/templates
+graft propjockey/static

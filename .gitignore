@@ -90,4 +90,4 @@ ENV/
 .ropeproject
 
 # Test database dump
-ilprn_test.gz
+propjockey_test.gz

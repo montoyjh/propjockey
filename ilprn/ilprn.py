@@ -28,11 +28,11 @@ def set_test_config():
         return [d['wid'] for d in rv]
 
     app.config['CLIENTS'] = {
-        k: {'database': 'ilprn_test', 'collection': k}
+        k: {'database': 'propjockey_test', 'collection': k}
         for k in ['votes', 'entries', 'workflows']
     }
     app.config['PASSWORDLESS']['tokenstore_client'] = {
-        'database': 'ilprn_test',
+        'database': 'propjockey_test',
         'collection': 'auth_tokens'
     }
     wconf['get_workflow_ids'] = get_workflow_ids
@@ -501,7 +501,7 @@ def _vote(user, eid, how):
 def make_test_db():
     from pymongo import MongoClient
     client = MongoClient()
-    tdb = client.ilprn_test
+    tdb = client.propjockey_test
     using_test_clients = app.config['USE_TEST_CLIENTS']
     app.config['USE_TEST_CLIENTS'] = False
     db = get_collections()

@@ -1,8 +1,8 @@
 from setuptools import setup
 
 setup(
-    name='ilprn',
-    packages=['ilprn'],
+    name='propjockey',
+    packages=['propjockey'],
     include_package_data=True,
     install_requires=[
         'flask',

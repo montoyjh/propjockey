@@ -5,7 +5,7 @@ import re
 import uuid
 
 import pytest
-from ilprn import ilprn
+from propjockey import propjockey
 from passwordless import Passwordless
 
 
@@ -19,18 +19,18 @@ permitted_test_user = str(uuid.uuid4())+'@example.gov'
 
 
 def set_test_config():
-    ilprn.app.config['CLIENTS'] = {
-        k: {'database': 'ilprn_test', 'collection': k}
+    propjockey.app.config['CLIENTS'] = {
+        k: {'database': 'propjockey_test', 'collection': k}
         for k in ['votes', 'entries', 'workflows']
     }
 
     def get_workflow_ids(eids, coll):
         rv = sorted(coll.find({'eid': {'$in': eids}}), key=itemgetter('eid'))
         return [d['wid'] for d in rv]
-    ilprn.app.config['WORKFLOWS']['get_workflow_ids'] = get_workflow_ids
+    propjockey.app.config['WORKFLOWS']['get_workflow_ids'] = get_workflow_ids
 
-    ilprn.app.config['VOTES'].update({'max_active_votes_per_user': 10})
-    ilprn.app.config['NOTIFY'].update({'MAILER': 'null'})
+    propjockey.app.config['VOTES'].update({'max_active_votes_per_user': 10})
+    propjockey.app.config['NOTIFY'].update({'MAILER': 'null'})
 
     def user_permitted(user):
         print(user)
@@ -38,23 +38,23 @@ def set_test_config():
             return {'success': True}
         else:
             return {'success': False, 'text': 'Better luck next time.'}
-    ilprn.app.config['PASSWORDLESS'].update({
+    propjockey.app.config['PASSWORDLESS'].update({
         'TOKEN_STORE': 'mongo',
         'DELIVERY_METHOD': 'null',
         'LOGIN_URL': 'plain',
-        'dbname': 'ilprn_test',
+        'dbname': 'propjockey_test',
         'user_permitted': user_permitted,
     })
 
 
 @pytest.fixture
 def client(request, user_unknown):
-    ilprn.app.config['TESTING'] = True
+    propjockey.app.config['TESTING'] = True
     set_test_config()
-    assert ilprn.app.config['PASSWORDLESS']['DELIVERY_METHOD'] == 'null'
-    ilprn.passwordless = Passwordless(ilprn.app)
-    client = ilprn.app.test_client()
-    ctx = ilprn.app.test_request_context()
+    assert propjockey.app.config['PASSWORDLESS']['DELIVERY_METHOD'] == 'null'
+    propjockey.passwordless = Passwordless(propjockey.app)
+    client = propjockey.app.test_client()
+    ctx = propjockey.app.test_request_context()
     ctx.push()
     login(client, user_unknown)
     return client
@@ -62,19 +62,19 @@ def client(request, user_unknown):
 
 @pytest.fixture
 def db():
-    with ilprn.app.app_context():
-        return ilprn.get_collections()
+    with propjockey.app.app_context():
+        return propjockey.get_collections()
 
 
 @pytest.fixture
 def user_with_completed(db):
-    doc = db.votes.find_one(ilprn.vconf['filter_completed'])
-    return doc[ilprn.vconf['requesters']][0]
+    doc = db.votes.find_one(propjockey.vconf['filter_completed'])
+    return doc[propjockey.vconf['requesters']][0]
 
 
 @pytest.fixture
 def user_with_top_active_entry(db):
-    vconf = ilprn.vconf
+    vconf = propjockey.vconf
     doc = db.votes.find_one(vconf['filter_active'],
                             sort=[(vconf['nvotes'], -1)])
     return doc[vconf['requesters']][0], str(doc[vconf['entry_id']])
@@ -82,7 +82,7 @@ def user_with_top_active_entry(db):
 
 @pytest.fixture
 def user_with_few_votes(db):
-    vconf = ilprn.vconf
+    vconf = propjockey.vconf
 
     def n_active_votes(user):
         filt = {vconf['requesters']: user}
@@ -91,7 +91,7 @@ def user_with_few_votes(db):
 
     for doc in db.votes.find(vconf['filter_active']):
         for user in doc[vconf['requesters']]:
-            if n_active_votes(user) < ilprn.econf['rows_per_page']:
+            if n_active_votes(user) < propjockey.econf['rows_per_page']:
                 return user
     raise Exception("No user found without a pageful of active votes.")
 
@@ -103,7 +103,7 @@ def user_unknown():
 
 @pytest.fixture
 def entryid_top(db):
-    vconf = ilprn.vconf
+    vconf = propjockey.vconf
     doc = db.votes.find_one(vconf['filter_active'],
                             sort=[(vconf['nvotes'], -1)])
     return str(doc[vconf['entry_id']])
@@ -111,7 +111,7 @@ def entryid_top(db):
 
 @pytest.fixture
 def eid_inactive_missing(db):
-    econf, vconf = ilprn.econf, ilprn.vconf
+    econf, vconf = propjockey.econf, propjockey.vconf
     for e in db.entries.find(econf['missing_property'],
                              {econf['e_id']: 1, '_id': 0}):
         eid = e[econf['e_id']]
@@ -121,7 +121,7 @@ def eid_inactive_missing(db):
 
 
 def login(client, user):
-    pconf = ilprn.pconf
+    pconf = propjockey.pconf
     app_id, app_secret = pconf['remote_app_id'], pconf['remote_app_secret']
     rv = client.post('/authtoken', data=dict(
         user=user,
@@ -263,8 +263,8 @@ def test_voting(client, db, user_with_top_active_entry, user_unknown,
     rv = try_down()
     assert 'cannot vote anonymously' in rv.data
 
-    max_votes = ilprn.vconf['max_active_votes_per_user']
-    ilprn.vconf['max_active_votes_per_user'] = db.votes.count() + 1
+    max_votes = propjockey.vconf['max_active_votes_per_user']
+    propjockey.vconf['max_active_votes_per_user'] = db.votes.count() + 1
     login(client, user_already_requested)
     rv = try_up()
     assert 'cannot upvote twice' in rv.data
@@ -273,7 +273,7 @@ def test_voting(client, db, user_with_top_active_entry, user_unknown,
     rv = try_up()
     assert 'upvoted' in rv.data and 'success' in rv.data
     logout(client)
-    ilprn.vconf['max_active_votes_per_user'] = max_votes
+    propjockey.vconf['max_active_votes_per_user'] = max_votes
 
     login(client, user_hasnt_requested)
     rv = try_down()
@@ -284,7 +284,7 @@ def test_voting(client, db, user_with_top_active_entry, user_unknown,
     assert 'downvoted' in rv.data and 'success' in rv.data
 
     # upvote something without a votedoc
-    vconf = ilprn.vconf
+    vconf = propjockey.vconf
     filt = {vconf['entry_id']: eid_inactive_missing,
             vconf['prop_field']: vconf['prop_value']}
     assert db.votes.find(filt).count() == 0
@@ -332,7 +332,7 @@ def test_votelimit(client, user_unknown):
     # Each user has vconf['max_active_votes_per_user'] votes.
     user = user_unknown
     login(client, user)
-    n = ilprn.vconf['max_active_votes_per_user']
+    n = propjockey.vconf['max_active_votes_per_user']
     assert n <= 30  # Ensure reasonably small test setting
     rv = client.get('/rows?psize={}&filter=*-O&format=json'.format(n+1))
     eids = [r['id'] for r in json.loads(rv.data)['rows']]
@@ -346,7 +346,7 @@ def test_votelimit(client, user_unknown):
 
 def test_authtoken_gen_and_fulfillment(client, user_unknown):
     user = user_unknown
-    token_uri = ilprn.passwordless.request_token(
+    token_uri = propjockey.passwordless.request_token(
         user=user, deliver=False)
     assert ('authenticate?token=' in token_uri and
             '&uid={}'.format(user) in token_uri)
@@ -367,7 +367,7 @@ def test_deliver_authtoken(client, user_unknown):
     # Note: this feature is not strictly necessary if users only
     # arrive to the ILPRN web interface via tokenized links requested
     # by the remote app.
-    pconf = ilprn.pconf
+    pconf = propjockey.pconf
     not_registered_user = user_unknown
     registered_user = permitted_test_user
     permitted = pconf['user_permitted'](not_registered_user)
@@ -376,10 +376,10 @@ def test_deliver_authtoken(client, user_unknown):
     print(permitted)
     assert permitted['success']
 
-    message, category = ilprn.passwordless.request_token(
+    message, category = propjockey.passwordless.request_token(
         user=registered_user, deliver=True)
     assert category == 'success'
-    message, category = ilprn.passwordless.request_token(
+    message, category = propjockey.passwordless.request_token(
         user=not_registered_user, deliver=True)
     assert category == 'warning'
 
@@ -390,8 +390,8 @@ def test_email_notification(client):
     # Note: there is already an up-and-running cron job for MP apart
     # from ILPRN that can be adapted.
     #
-    assert ilprn.app.config['NOTIFY']['MAILER'] == 'null'
-    from ilprn.notify import notify
+    assert propjockey.app.config['NOTIFY']['MAILER'] == 'null'
+    from propjockey.notify import notify
     # TODO: figure out why `notify()` takes so long with zero requests
     # needing notification.
     pass
@@ -399,13 +399,13 @@ def test_email_notification(client):
 
 def test_app_auth(client, user_unknown):
     # Be able to get data on behalf of user given app id and token.
-    # In this way, one can build a service that consumes ilprn data.
+    # In this way, one can build a service that consumes propjockey data.
     #
     # E.g. be able to vote using app id and token in request header.
     #
     # given MP app id and token, I want to get a token_uri for any user.
     user = user_unknown
-    pconf = ilprn.pconf
+    pconf = propjockey.pconf
     app_id, app_secret = pconf['remote_app_id'], pconf['remote_app_secret']
     rv = client.post('/authtoken', data=dict(user=user))
     assert rv.status_code == 401

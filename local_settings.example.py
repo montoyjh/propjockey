@@ -119,7 +119,7 @@ CLIENTS = {
         'port': 57010,
         'database': 'apps',
         'collection': 'property_requests',
-        'username': 'ilprn_readwrite',
+        'username': 'propjockey_readwrite',
         'password': 'emulsify-gamester-fealty-dwarf-county',
     },
     'entries': {
@@ -127,7 +127,7 @@ CLIENTS = {
         'port': 57010,
         'database': 'data',
         'collection': 'materials',
-        'username': 'ilprn_read',
+        'username': 'propjockey_read',
         'password': 'teacher-unfurl-anyone-facial-abyss',
     },
     'workflows': {
@@ -135,7 +135,7 @@ CLIENTS = {
         'port': 57011,
         'database': 'elastijobs',
         'collection': 'workflows',
-        'username': 'ilprn_read',
+        'username': 'propjockey_read',
         'password': 'aback-stool-padre-poky-salute',
     }
 }
@@ -162,7 +162,7 @@ PASSWORDLESS = {
     'LOGIN_URL': 'plain',
     'TOKEN_STORE': 'mongo',
     'tokenstore_client': {
-        'database': 'ilprn_test',
+        'database': 'propjockey_test',
         'collection': 'tokenstore',
     },
     'DELIVERY_METHOD': 'mailgun',

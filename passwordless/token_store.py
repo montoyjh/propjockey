@@ -1,6 +1,6 @@
 import abc
 
-from ilprn.util import mongoconnect
+from propjockey.util import mongoconnect
 
 
 class TokenStore(object):
