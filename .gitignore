@@ -91,3 +91,6 @@ ENV/
 
 # Test database dump
 propjockey_test.gz
+
+# OSX files
+.DS_Store
