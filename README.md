@@ -18,7 +18,7 @@ email notification when property calculations complete.
 
 * Former name: Interactive Leaderboard for Property Requests and Notification (ILPRN).
 
-Example deployment: http://elastic.propjockey.materialsproject.org/.
+Example deployment: http://elastic.pj.materialsproject.org/.
 
 [Science Gateways 2016](http://sciencegateways.org/gateways2016/) conference: [extended abstract](docs/gateways2016-extended-abstract.pdf) and [talk slides](docs/gateways2016-talk-slides.pdf).
 
