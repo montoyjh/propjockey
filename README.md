@@ -1,5 +1,7 @@
-The Interactive Leaderboard for Property Requests and Notification
-(ILPRN, "ill-pern") is a way for staff managing scientific computing
+Propjockey helps you queue up workflows and dynamically change their priorities for running;
+it's like having a [slipmat](https://en.wikipedia.org/wiki/Slipmat) for scientific computing.
+
+Propjockey is a tool for staff managing scientific computing
 resources to facilitate a user community voting to prioritize
 calculation of properties across a database of known entities. For
 example, across a database of entities corresponding to known
@@ -10,9 +12,11 @@ computationally expensive, not of interest for all materials, etc.
 The staff managing the growth and dissemination of this database of
 material structures and properties wishes to empower the community of
 users consuming the data to help prioritize computational jobs in a
-way that will dovetail with in-house priorities. ILPRN helps with
+way that will dovetail with in-house priorities. Propjockey helps with
 this, connecting users to details of running workflows and providing
 email notification when property calculations complete.
+
+* Former name: Interactive Leaderboard for Property Requests and Notification (ILPRN).
 
 Example deployment: http://elastic.ilprn.materialsproject.org/.
 
