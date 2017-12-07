@@ -9,6 +9,7 @@ wconf = app.config['WORKFLOWS'] # Dunno if this is the best place for this, coul
 
 lpad = wconf['launchpad']
 
+logger = logging.get_logger(__module__)
 
 def set_priority(propjockey_field, fireworks_field, vote_weight=1,
                  pj_filter={}, base_priority=0, time_window=None, 
@@ -35,8 +36,7 @@ def set_priority(propjockey_field, fireworks_field, vote_weight=1,
             for function based on propjockey document and firework.
             Should have two arguments propjockey_doc and firework,
             which take propjockey documents and fireworks as args.
-            Example: want to penalize structures with large
-                numbers of sites
+            Example: want to penalize structures with large nsites
     """
     pj_filter.update({"state": {"$ne": "COMPLETED"}})
     if time_window:
@@ -51,13 +51,14 @@ def set_priority(propjockey_field, fireworks_field, vote_weight=1,
     #           think propjockey needs to be modified slightly for this.
     for e_id in e_ids:
         pj_doc = pj_collection.find_one({propjockey_field: e_id})
-        fw_id = lpad.get_fw_ids(query={fireworks_field: e_id})
+        fw_ids = lpad.get_fw_ids(query={fireworks_field: e_id})
         new_priority = vote_weight * pj_doc['nrequesters'] + base_priority
-        if modifier_func:
-            firework = lp.get_fw_by_id(fw_id)
-            new_priority = modifier_func(propjockey_doc, firework)
-        logger.info("Setting priority of fw with id {} to {}".format(fw_id, new_priority))
-        lpad.set_priority(fw_id, new_priority)
+        for fw_id in fw_ids:
+            if modifier_func:
+                firework = lp.get_fw_by_id(fw_id)
+                new_priority = modifier_func(propjockey_doc, firework)
+            logger.info("Setting priority of fw with id {} to {}".format(fw_id, new_priority))
+            lpad.set_priority(fw_id, new_priority)
 
 if __name__ == "__main__":
     prioritizer_args = wconf['priority']
