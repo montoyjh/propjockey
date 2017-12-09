@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 from operator import itemgetter
 from functools import wraps
 
@@ -6,9 +8,14 @@ from flask import g, jsonify, render_template, flash, abort
 from pymongo import ASCENDING, DESCENDING
 from toolz import memoize, merge
 
-from util import Bunch, get_collection, mongoconnect
+from propjockey.util import Bunch, get_collection, mongoconnect
 from passwordless import Passwordless
 
+try:
+    import fireworks
+    fws_available = True
+except:
+    fws_available = False
 
 app = Flask(__name__)
 
@@ -19,11 +26,6 @@ vconf = app.config['VOTES']
 wconf = app.config['WORKFLOWS']
 pconf = app.config['PASSWORDLESS']
 
-if app.config.get('USE_TEST_CLIENTS'):
-    set_test_config()
-passwdless = Passwordless(app)
-
-
 def set_test_config():
     def get_workflow_ids(eids, coll):
         rv = sorted(coll.find({'eid': {'$in': eids}}), key=itemgetter('eid'))
@@ -33,11 +35,19 @@ def set_test_config():
         k: {'database': 'propjockey_test', 'collection': k}
         for k in ['votes', 'entries', 'workflows']
     }
+    if fws_available:
+        app.config['CLIENTS']['fireworks'] = {'host': 'localhost',
+                                              'port': 57011,
+                                              'database': 'propjockey_test_fws'}
     app.config['PASSWORDLESS']['tokenstore_client'] = {
         'database': 'propjockey_test',
         'collection': 'auth_tokens'
     }
     wconf['get_workflow_ids'] = get_workflow_ids
+
+if app.config.get('USE_TEST_CLIENTS'):
+    set_test_config()
+passwdless = Passwordless(app)
 
 
 def login_required(f):
@@ -75,7 +85,7 @@ def get_collections():
     return g.bunch
 
 
-def tablerow_data((votedoc, entry, w_id), prop_missing=True):
+def tablerow_data(votedoc, entry, w_id, prop_missing=True):
     entry['description'] = econf['describe_entry'](
         entry, econf.get('description_fields', []))
     entry['id'] = entry[econf['e_id']]
@@ -86,7 +96,7 @@ def tablerow_data((votedoc, entry, w_id), prop_missing=True):
         entry['extrasort'] = xform(entry['extrasort'])
     if w_id:
         entry['w_link'] = wconf['url_for'].format(w_id=w_id)
-    for k, _ in entry.items():
+    for k, _ in list(entry.items()):
         if k not in ['id', 'description', 'extrasort', 'w_link', 'e_link']:
             del entry[k]
 
@@ -95,7 +105,7 @@ def tablerow_data((votedoc, entry, w_id), prop_missing=True):
         if 'user' in session:
             votedoc['votedfor'] = vconf['user_voted'](
                 session['user'], prefilter=False, votes_doc=votedoc)
-        for k, _ in votedoc.items():
+        for k, _ in list(votedoc.items()):
             if k not in ['nvotes', 'votedfor']:
                 del votedoc[k]
     elif not prop_missing:
@@ -326,7 +336,7 @@ def rows_active(active_votedocs, active_entry_ids,
     entry_ids_set = set(entry_ids)
     votedocs = [d for d in active_votedocs
                 if d[vconf['entry_id']] in entry_ids_set]
-    result = [tablerow_data(z) for z in zip(votedocs, entries, workflow_ids)]
+    result = [tablerow_data(*z) for z in zip(votedocs, entries, workflow_ids)]
     result.sort(key=itemgetter('extrasort'),
                 reverse=secondary_sort_dir is DESCENDING)
     result.sort(key=itemgetter('nvotes'),
@@ -338,7 +348,7 @@ def rows_inactive(entries, prop_missing=True):
     if not entries:
         return []
     nones = len(entries) * [None]
-    return [tablerow_data(z, prop_missing=prop_missing)
+    return [tablerow_data(*z, prop_missing=prop_missing)
             for z in zip(nones, entries, nones)]
 
 
@@ -506,6 +516,7 @@ def make_test_db():
 
     tdb.votes.drop()
     tdb.votes.insert_many(db.votes.find())
+
     from util import make_requesters_aliases, set_requesters_aliases
     alias_map = make_requesters_aliases(tdb.votes, vconf['requesters'])
     set_requesters_aliases(tdb.votes, vconf['requesters'], alias_map)
@@ -523,5 +534,13 @@ def make_test_db():
     proj.update(entry_projection())
     tdb.entries.insert_many(list(db.entries.find({}, proj)))
     print("{} entries".format(tdb.entries.count()))
+    if fws_available:
+        from fireworks import ScriptTask, LaunchPad
+        fws_db = client.propjockey_fws
+        lpad = LaunchPad(**app.config['CLIENTS']['launchpad'])
+        for entry_id in entry_ids:
+            fw = Workflow([ScriptTask("echo \"{}\"".format(entry_id),
+                                      spec={"tags": [entry_id]})])
+            lpad.add_fw(fw)
 
 app.secret_key = app.config['APP_SECRET_KEY']

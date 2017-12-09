@@ -1,1 +1,1 @@
-from propjockey import app
+from .propjockey import app

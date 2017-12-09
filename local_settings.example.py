@@ -2,6 +2,7 @@ import pymongo
 from pymatgen import MPRester
 
 
+
 def describe_entry(e, fields):
     """Join fields in entry e to provide a string description.
 
@@ -72,6 +73,9 @@ def get_workflow_ids(entry_ids, workflow_collection):
 WORKFLOWS = {
     'get_workflow_ids': get_workflow_ids,
     'url_for': 'http://elastic.dash.materialsproject.org/wf/{w_id}',
+    # 'set_priority': propjockey.fireworks.set_priority,
+    # TODO: add set priority args
+    'set_priority_args': {''}
 }
 
 

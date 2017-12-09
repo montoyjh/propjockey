@@ -1,7 +1,7 @@
 import time
 
 from .mailers import MAILERS
-from propjockey import connect_collections, econf, vconf, app
+from .propjockey import connect_collections, econf, vconf, app
 
 
 def notify():

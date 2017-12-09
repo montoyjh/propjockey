@@ -14,6 +14,7 @@ setup(
         'pytest-runner',
     ],
     tests_require=[
+        'six',
         'pytest',
     ],
 )
