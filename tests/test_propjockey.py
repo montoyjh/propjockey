@@ -1,7 +1,8 @@
 import json
-from itertools import tee, izip, groupby
+from itertools import tee, groupby
 from operator import itemgetter
 import re
+from six.moves import zip
 import uuid
 
 import pytest
@@ -13,7 +14,7 @@ def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     a, b = tee(iterable)
     next(b, None)
-    return izip(a, b)
+    return zip(a, b)
 
 permitted_test_user = str(uuid.uuid4())+'@example.gov'
 
@@ -182,10 +183,10 @@ def test_login_logout(client, user_unknown):
     """Make sure login and logout works"""
     user = user_unknown
     rv = login(client, user)
-    assert 'Log out' in rv.data
-    assert user in rv.data
+    assert 'Log out' in str(rv.data)
+    assert user in str(rv.data)
     rv = logout(client)
-    assert 'user@example.gov' in rv.data
+    assert 'user@example.gov' in str(rv.data)
 
 
 def test_nofilter_onlymyvotes(client, user_with_completed):
@@ -259,29 +260,29 @@ def test_voting(client, db, user_with_top_active_entry, user_unknown,
 
     logout(client)
     rv = try_up()
-    assert 'cannot vote anonymously' in rv.data
+    assert 'cannot vote anonymously' in str(rv.data)
     rv = try_down()
-    assert 'cannot vote anonymously' in rv.data
+    assert 'cannot vote anonymously' in str(rv.data)
 
     max_votes = propjockey.vconf['max_active_votes_per_user']
     propjockey.vconf['max_active_votes_per_user'] = db.votes.count() + 1
     login(client, user_already_requested)
     rv = try_up()
-    assert 'cannot upvote twice' in rv.data
+    assert 'cannot upvote twice' in str(rv.data)
     rv = try_down()
-    assert 'downvoted' in rv.data and 'success' in rv.data
+    assert 'downvoted' in str(rv.data) and 'success' in str(rv.data)
     rv = try_up()
-    assert 'upvoted' in rv.data and 'success' in rv.data
+    assert 'upvoted' in str(rv.data) and 'success' in str(rv.data)
     logout(client)
     propjockey.vconf['max_active_votes_per_user'] = max_votes
 
     login(client, user_hasnt_requested)
     rv = try_down()
-    assert 'can only downvote after upvote' in rv.data
+    assert 'can only downvote after upvote' in str(rv.data)
     rv = try_up()
-    assert 'upvoted' in rv.data and 'success' in rv.data
+    assert 'upvoted' in str(rv.data) and 'success' in str(rv.data)
     rv = try_down()
-    assert 'downvoted' in rv.data and 'success' in rv.data
+    assert 'downvoted' in str(rv.data) and 'success' in str(rv.data)
 
     # upvote something without a votedoc
     vconf = propjockey.vconf
@@ -289,7 +290,7 @@ def test_voting(client, db, user_with_top_active_entry, user_unknown,
             vconf['prop_field']: vconf['prop_value']}
     assert db.votes.find(filt).count() == 0
     rv = try_up(eid_inactive_missing)
-    assert 'upvoted' in rv.data and 'success' in rv.data
+    assert 'upvoted' in str(rv.data) and 'success' in str(rv.data)
     db.votes.delete_one(filt)
 
 
@@ -297,11 +298,11 @@ def test_form_ui_and_table_display(client, user_with_top_active_entry):
     user, eid = user_with_top_active_entry
     login(client, user)
     rv = client.get('/', follow_redirects=True)
-    assert eid in rv.data
+    assert eid in str(rv.data)
     # Pagination
-    assert 'Next' in rv.data
+    assert 'Next' in str(rv.data)
     rv = client.get('/rows?format=html&pnum=1')
-    assert 'Previous' in rv.data
+    assert 'Previous' in str(rv.data)
 
 
 def test_webui_voting(client, user_unknown, user_with_top_active_entry):
@@ -309,23 +310,23 @@ def test_webui_voting(client, user_unknown, user_with_top_active_entry):
     user = user_unknown
     _, eid = user_with_top_active_entry
     login(client, user)
-    assert eid in client.get('/rows?format=html').data
+    assert eid in str(client.get('/rows?format=html').data)
     rv = client.post(
         'vote',
         data=dict(redirect_path='/rows?format=html',
                   eid=eid,
                   how='up'),
         follow_redirects=True)
-    assert ('success: upvoted {}'.format(eid) in rv.data
-            and 'Log out' in rv.data)
+    assert ('success: upvoted {}'.format(eid) in str(rv.data)
+            and 'Log out' in str(rv.data))
     rv = client.post(
         'vote',
         data=dict(redirect_path='/rows?format=html',
                   eid=eid,
                   how='down'),
         follow_redirects=True)
-    assert ('success: downvoted {}'.format(eid) in rv.data
-            and 'Log out' in rv.data)
+    assert ('success: downvoted {}'.format(eid) in str(rv.data)
+            and 'Log out' in str(rv.data))
 
 
 def test_votelimit(client, user_unknown):
@@ -339,7 +340,7 @@ def test_votelimit(client, user_unknown):
     data = []
     for eid in eids:
         data.append(client.post('/vote', data=dict(how='up', eid=eid)).data)
-    assert any('Consider revoking votes' in d for d in data)
+    assert any('Consider revoking votes' in str(d) for d in data)
     for eid in eids:
         client.post('/vote', data=dict(how='down', eid=eid))
 
@@ -353,9 +354,9 @@ def test_authtoken_gen_and_fulfillment(client, user_unknown):
     m = re.match('.*?//.*?(/.*)', token_uri)
     path = m.group(1)
     rv = client.get(path, follow_redirects=True)
-    assert 'bad user email or token' not in rv.data
+    assert 'bad user email or token' not in str(rv.data)
     rv = client.get(path, follow_redirects=True)
-    assert 'bad user email or token' in rv.data
+    assert 'bad user email or token' in str(rv.data)
 
 
 def test_deliver_authtoken(client, user_unknown):
@@ -420,12 +421,12 @@ def test_app_auth(client, user_unknown):
         app_id=app_id,
         app_secret=app_secret
     ))
-    assert rv.status_code == 200 and '/authenticate?' in rv.data
+    assert rv.status_code == 200 and '/authenticate?' in str(rv.data)
 
 
 def test_auth_lockdown(client):
     logout(client)
     rv = client.get('/', follow_redirects=True)
-    assert 'user@example.gov' in rv.data
+    assert 'user@example.gov' in str(rv.data)
     rv = client.get('/rows', follow_redirects=True)
-    assert 'user@example.gov' in rv.data
+    assert 'user@example.gov' in str(rv.data)

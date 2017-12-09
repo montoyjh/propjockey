@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 from operator import itemgetter
 from functools import wraps
 
@@ -6,7 +8,7 @@ from flask import g, jsonify, render_template, flash, abort
 from pymongo import ASCENDING, DESCENDING
 from toolz import memoize, merge
 
-from util import Bunch, get_collection, mongoconnect
+from .util import Bunch, get_collection, mongoconnect
 from passwordless import Passwordless
 
 
@@ -75,7 +77,8 @@ def get_collections():
     return g.bunch
 
 
-def tablerow_data((votedoc, entry, w_id), prop_missing=True):
+def tablerow_data(votedoc_entry_wid, prop_missing=True):
+    votedoc, entry, w_id = votedoc_entry_wid
     entry['description'] = econf['describe_entry'](
         entry, econf.get('description_fields', []))
     entry['id'] = entry[econf['e_id']]
@@ -86,7 +89,7 @@ def tablerow_data((votedoc, entry, w_id), prop_missing=True):
         entry['extrasort'] = xform(entry['extrasort'])
     if w_id:
         entry['w_link'] = wconf['url_for'].format(w_id=w_id)
-    for k, _ in entry.items():
+    for k, _ in list(entry.items()):
         if k not in ['id', 'description', 'extrasort', 'w_link', 'e_link']:
             del entry[k]
 
@@ -95,7 +98,7 @@ def tablerow_data((votedoc, entry, w_id), prop_missing=True):
         if 'user' in session:
             votedoc['votedfor'] = vconf['user_voted'](
                 session['user'], prefilter=False, votes_doc=votedoc)
-        for k, _ in votedoc.items():
+        for k, _ in list(votedoc.items()):
             if k not in ['nvotes', 'votedfor']:
                 del votedoc[k]
     elif not prop_missing:
@@ -506,7 +509,7 @@ def make_test_db():
 
     tdb.votes.drop()
     tdb.votes.insert_many(db.votes.find())
-    from util import make_requesters_aliases, set_requesters_aliases
+    from .util import make_requesters_aliases, set_requesters_aliases
     alias_map = make_requesters_aliases(tdb.votes, vconf['requesters'])
     set_requesters_aliases(tdb.votes, vconf['requesters'], alias_map)
     print("{} votes".format(tdb.votes.count()))
