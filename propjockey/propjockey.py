@@ -21,10 +21,6 @@ vconf = app.config['VOTES']
 wconf = app.config['WORKFLOWS']
 pconf = app.config['PASSWORDLESS']
 
-if app.config.get('USE_TEST_CLIENTS'):
-    set_test_config()
-passwdless = Passwordless(app)
-
 
 def set_test_config():
     def get_workflow_ids(eids, coll):
@@ -41,6 +37,11 @@ def set_test_config():
     }
     wconf['get_workflow_ids'] = get_workflow_ids
 
+
+if app.config.get('USE_TEST_CLIENTS'):
+    set_test_config()
+
+passwdless = Passwordless(app)
 
 def login_required(f):
     @wraps(f)
