@@ -8,7 +8,11 @@ from flask import g, jsonify, render_template, flash, abort
 from pymongo import ASCENDING, DESCENDING
 from toolz import memoize, merge
 
+<<<<<<< HEAD
 from propjockey.util import Bunch, get_collection, mongoconnect
+=======
+from .util import Bunch, get_collection, mongoconnect
+>>>>>>> master
 from passwordless import Passwordless
 
 try:
@@ -26,6 +30,10 @@ vconf = app.config['VOTES']
 wconf = app.config['WORKFLOWS']
 pconf = app.config['PASSWORDLESS']
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> master
 def set_test_config():
     def get_workflow_ids(eids, coll):
         rv = sorted(coll.find({'eid': {'$in': eids}}), key=itemgetter('eid'))
@@ -49,6 +57,11 @@ if app.config.get('USE_TEST_CLIENTS'):
     set_test_config()
 passwdless = Passwordless(app)
 
+
+if app.config.get('USE_TEST_CLIENTS'):
+    set_test_config()
+
+passwdless = Passwordless(app)
 
 def login_required(f):
     @wraps(f)
@@ -85,7 +98,12 @@ def get_collections():
     return g.bunch
 
 
+<<<<<<< HEAD
 def tablerow_data(votedoc, entry, w_id, prop_missing=True):
+=======
+def tablerow_data(votedoc_entry_wid, prop_missing=True):
+    votedoc, entry, w_id = votedoc_entry_wid
+>>>>>>> master
     entry['description'] = econf['describe_entry'](
         entry, econf.get('description_fields', []))
     entry['id'] = entry[econf['e_id']]
@@ -516,8 +534,12 @@ def make_test_db():
 
     tdb.votes.drop()
     tdb.votes.insert_many(db.votes.find())
+<<<<<<< HEAD
 
     from util import make_requesters_aliases, set_requesters_aliases
+=======
+    from .util import make_requesters_aliases, set_requesters_aliases
+>>>>>>> master
     alias_map = make_requesters_aliases(tdb.votes, vconf['requesters'])
     set_requesters_aliases(tdb.votes, vconf['requesters'], alias_map)
     print("{} votes".format(tdb.votes.count()))

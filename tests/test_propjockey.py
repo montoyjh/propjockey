@@ -1,8 +1,12 @@
 import json
+<<<<<<< HEAD
 from six.moves import zip
+=======
+>>>>>>> master
 from itertools import tee, groupby
 from operator import itemgetter
 import re
+from six.moves import zip
 import uuid
 
 import pytest

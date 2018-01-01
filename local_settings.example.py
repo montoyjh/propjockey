@@ -12,6 +12,7 @@ def describe_entry(e, fields):
     'LiCoO2 R-3m'
     """
     from operator import getitem
+    from six.moves import reduce
     return " ".join([reduce(getitem, f.split('.'), e)
                      for f in fields])
 
